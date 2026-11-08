@@ -1,0 +1,14 @@
+build/
+signing.p12
+tools/
+local.properties
+
+*.p12
+*.jks
+*.keystore
+*.local.env
+.env
+.secrets/
+
+__pycache__/
+*.pyc

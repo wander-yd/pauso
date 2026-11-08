@@ -1,0 +1,14 @@
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+ android:layout_width="match_parent" android:layout_height="48dp"
+ android:orientation="horizontal" android:gravity="center_vertical" android:background="#202020" android:forceDarkAllowed="false">
+ <LinearLayout android:layout_width="0dp" android:layout_weight="1" android:layout_height="match_parent" android:orientation="vertical" android:gravity="center_vertical">
+  <LinearLayout android:layout_width="match_parent" android:layout_height="32dp" android:orientation="horizontal" android:gravity="center_vertical">
+   <ImageView android:id="@+id/countdown_phase" android:layout_width="20dp" android:layout_height="20dp" android:layout_marginEnd="6dp" android:src="@drawable/ic_status_music"/>
+   <Chronometer android:id="@+id/countdown_timer" android:layout_width="wrap_content" android:layout_height="match_parent" android:gravity="center_vertical" android:textSize="28sp" android:fontFamily="sans-serif-medium" android:includeFontPadding="false" android:textAppearance="@android:style/TextAppearance.Material.Notification.Title" android:textColor="#FFFFFFFF"/>
+   <ImageView android:id="@+id/countdown_paused" android:layout_width="32dp" android:layout_height="28dp" android:src="@drawable/ic_control_pause" android:tint="#FFFFFFFF" android:contentDescription="Manually paused" android:visibility="gone"/>
+  </LinearLayout>
+  <TextView android:id="@+id/countdown_track" android:layout_width="match_parent" android:layout_height="16dp" android:gravity="center_vertical" android:singleLine="true" android:ellipsize="end" android:textSize="11sp" android:includeFontPadding="false" android:textAppearance="@android:style/TextAppearance.Material.Notification" android:textColor="#FFCCCCCC"/>
+ </LinearLayout>
+ <ImageButton android:id="@+id/countdown_toggle" android:layout_width="48dp" android:layout_height="48dp" android:layout_marginStart="4dp" android:padding="10dp" android:scaleType="fitCenter" android:background="@android:color/transparent" android:src="@drawable/ic_control_pause" android:tint="#FFFFFFFF" android:contentDescription="Pause schedule"/>
+ <ImageButton android:id="@+id/countdown_stop" android:layout_width="48dp" android:layout_height="48dp" android:layout_marginStart="8dp" android:padding="12dp" android:scaleType="fitCenter" android:background="@android:color/transparent" android:src="@drawable/ic_control_stop" android:tint="#FFFFFFFF" android:contentDescription="Stop schedule"/>
+</LinearLayout>

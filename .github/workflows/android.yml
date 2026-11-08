@@ -1,0 +1,94 @@
+name: Pauso Android
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: pauso-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Install build and signal-check tools
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg python3-numpy python3-scipy
+          ./scripts/ci_tools.sh
+      - name: Assign monotonic CI version
+        run: python3 scripts/set_version.py --code "$((1000 + GITHUB_RUN_NUMBER))" --name "0.12.$GITHUB_RUN_NUMBER"
+      - name: Test and compile without production signing credentials
+        env:
+          ECJ_JAR: tools/ecj.jar
+          PAUSO_UNSIGNED: '1'
+          PAUSO_CHECK_APK: build/aligned.apk
+        run: |
+          python3 scripts/audit_source.py
+          ./test.sh
+          python3 -m unittest discover -s tests -p '*_test.py'
+          ./build.sh
+          /usr/bin/python3 scripts/check_audio.py
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: verified-apk
+          path: |
+            build/aligned.apk
+            build/version.json
+          retention-days: 7
+          if-no-files-found: error
+  publish:
+    needs: verify
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && vars.PAUSO_PUBLISH_ENABLED == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Prepare signing tools
+        run: ./scripts/ci_tools.sh
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: verified-apk
+          path: build
+      - name: Sign using the existing Pauso identity
+        env:
+          PAUSO_KEYSTORE_B64: ${{ secrets.PAUSO_KEYSTORE_B64 }}
+          PAUSO_STORE_PASSWORD: ${{ secrets.PAUSO_STORE_PASSWORD }}
+          PAUSO_KEY_PASSWORD: ${{ secrets.PAUSO_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          : "${PAUSO_KEYSTORE_B64:?Missing signing key secret}"
+          : "${PAUSO_STORE_PASSWORD:?Missing store password}"
+          : "${PAUSO_KEY_PASSWORD:?Missing key password}"
+          umask 077
+          printf '%s' "$PAUSO_KEYSTORE_B64" | base64 --decode > "$RUNNER_TEMP/pauso-signing.p12"
+          BT="$ANDROID_HOME/build-tools/35.0.0"
+          "$BT/apksigner" sign --ks "$RUNNER_TEMP/pauso-signing.p12" --ks-key-alias hourpause --ks-pass env:PAUSO_STORE_PASSWORD --key-pass env:PAUSO_KEY_PASSWORD --out build/Pauso.apk build/aligned.apk
+          "$BT/apksigner" verify --print-certs build/Pauso.apk > build/certificate.txt
+          grep -Fq 'Signer #1 certificate SHA-256 digest: 6fc1b1cc71e08aab13f9a3fc8284653723b63f35046135954719bccd308534c2' build/certificate.txt
+          "$BT/aapt" dump badging build/Pauso.apk > build/package.txt
+          python3 scripts/check_package.py
+      - name: Prepare public update metadata
+        run: python3 scripts/release_manifest.py
+      - name: Publish complete release
+        env:
+          GH_TOKEN: ${{ secrets.PAUSO_RELEASE_TOKEN }}
+        run: ./scripts/publish_release.sh
+      - name: Remove temporary private signing material
+        if: always()
+        run: rm -f "$RUNNER_TEMP/pauso-signing.p12"
