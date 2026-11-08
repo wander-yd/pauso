@@ -1,9 +1,11 @@
-# Pauso automatic updates — prepared, not activated
+# Pauso automatic updates — active
 
 ## Current state
-Local implementation and tests are prepared. Browser and connector both confirmed owner wander-yd. Created private wander-yd/pauso and public wander-yd/pauso-releases. The public repository contains the reviewed README only. PAUSO_PUBLISH_ENABLED is false. Source upload and first remote verification are in progress. No signing secret or publication credential has been uploaded; no APK has been published.
+The owner approved activation on 2026-11-09 (Asia/Kuala_Lumpur). Source is private wander-yd/pauso; distribution is public wander-yd/pauso-releases. All four repository Secrets are configured and PAUSO_PUBLISH_ENABLED is true. The first live release, v0.12.2 (versionCode 1002), passed tests, APK packaging, audio checks, signing-certificate verification and complete release publication. Initial disabled run 42531982028 skipped publication; enabled run 42534315839 published successfully.
 
-Only next action: finish source upload and remote verification, then confirm owner authorization for Actions signing credentials and create the restricted release token. Public APK release activation remains a final approval step. Two sequential real GitHub releases plus a phone upgrade are still unverified.
+The release credential is restricted to pauso-releases, Contents read/write plus required Metadata read, expiring 2027-02-07. Renew it in private repository Secrets before expiry; never share it in chat or commit it. No paid Actions overage was enabled.
+
+This documentation commit exercises the second automatic main-push release. Verify the new versionCode increases and the latest download resolves to it while v0.12.2 remains. The remaining device acceptance is an in-place Android upgrade, update prompt, and retained audio/volume/Rhythm settings; no physical device is available in this environment.
 
 ## Frozen outcome
 - Private source: wander-yd/pauso.

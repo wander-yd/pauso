@@ -17,12 +17,12 @@ In the notification, the LEFT colored icon is status: green music = playing; amb
 
 The status-bar number is remaining whole minutes rounded up; values above 99 appear as 99+. Actual notification layout depends on the phone system.
 
-## Update checking (0.12 — prepared, remote setup pending)
+## Update checking (0.12 — active)
 Pauso checks for a new release at most once per 24 hours when opened. Use the Check for updates button at the bottom for a manual check. New versions show a plain update summary; Download update opens the browser and Android asks you to confirm installation. Playback and timers do not depend on successful checks. There is no silent installer permission or in-app download manager.
 
-The configured release repository is wander-yd/pauso-releases. It has NOT been created or populated yet in this task; GitHub sign-in and Secrets setup are pending. Until a public release is published, manual checking reports that no release is available rather than claiming the current version is up to date. Do not distribute this as a fully operational automatic-update release yet.
+The live release repository is https://github.com/wander-yd/pauso-releases/releases. The private source repository is wander-yd/pauso. GitHub Actions tests and builds each push; main builds are signed with the existing identity and automatically published only after validation succeeds. Published release versions are retained. Friends install the current APK once, then use the app's update prompts for subsequent releases.
 
-For source build/signing/CI setup and the final publication approval boundary, read AUTOMATIC_UPDATES.md. Source and workflow are prepared for private pauso plus public pauso-releases; only main can publish after the publishing switch is enabled.
+For signing, CI setup, credential renewal and recovery, read AUTOMATIC_UPDATES.md. The release credential expires 2027-02-07 and must be renewed in repository Secrets. Physical Android upgrade and notification/dialog behavior still require the bounded phone test.
 
 ## Offline Sounds (0.11)
 Tap **Sounds** for Noise (White/Pink/Brown), Nature (Forest Rain/Forest Birds), and My Audio. Everything works offline. New installs start with Brown Noise selected at 35% player volume; opening the app does not auto-play. Upgrades retain the last file and volume. Audio never needs a network connection and has no ads. The Internet permission is used only to check for updates.
@@ -75,7 +75,7 @@ export ECJ_JAR=/path/to/ecj-3.40.0.jar
 ```
 
 ECJ download: https://repo.maven.apache.org/maven2/org/eclipse/jdt/ecj/3.40.0/ecj-3.40.0.jar
-Output: build/Pauso.apk. No Android Studio or Gradle is required. No third-party runtime dependencies, internet permission or server.
+Output: build/Pauso.apk. No Android Studio or Gradle is required. No third-party runtime dependencies or application server. Internet is used only for update checks.
 
 `test.sh` runs ScheduleTest, PlaybackGateTest, RhythmTest, PlanStoreTest, SoundStoreTest and NoiseTest. The store tests use lightweight Android-interface fixtures, not an Android emulator. NoiseTest writes signal fixtures under build/. Optional signal checks: `python3 scripts/check_audio.py` (requires numpy, scipy and ffmpeg). See SPEC.md for the frozen behavior and evidence.
 
@@ -86,4 +86,4 @@ A foreground service and bounded, renewed CPU wake lock keep active schedules wo
 
 To roll back, stop the app and reinstall the previous version if needed (Android may require uninstalling the newer version first, which clears app settings). Keep the audio file separately. No cloud account or data migration is involved.
 
-State: update client and automatic publishing implementation prepared and locally tested; GitHub repository creation, Secrets and live CI/release/phone upgrade checks remain blocked on authentication. No calendar, weekday schedules, playlists, YouTube, floating overlay or new scheduling behavior in this release.
+State: update checking and automatic publication are active; local tests and the first live CI/signing/release passed. In-place phone upgrade remains unverified. No calendar, weekday schedules, playlists, YouTube, floating overlay or new scheduling behavior in this release.
