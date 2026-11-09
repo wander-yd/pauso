@@ -13,7 +13,9 @@ import android.view.View;
 public class PlaybackService extends Service {
  public static final String START="com.andrew.hourpause.START",STOP="com.andrew.hourpause.STOP",VOLUME="com.andrew.hourpause.VOLUME",PAUSE="com.andrew.hourpause.PAUSE",RESUME="com.andrew.hourpause.RESUME",PLAN="com.andrew.hourpause.PLAN",SOUND="com.andrew.hourpause.SOUND";
  public static final String NEXT="com.andrew.hourpause.NEXT",PREVIOUS="com.andrew.hourpause.PREVIOUS",MODE="com.andrew.hourpause.MODE";
+ public static final String SLEEP="com.andrew.hourpause.SLEEP",CANCEL_SLEEP="com.andrew.hourpause.CANCEL_SLEEP";
  public static volatile boolean running=false;
+ private SleepStore sleep;
  private MusicStore music;private final java.util.Random random=new java.util.Random();
  public static volatile String status="Ready",error="";
  private static final int ID=14;
@@ -30,10 +32,10 @@ public class PlaybackService extends Service {
  private final PlaybackGate gate=new PlaybackGate();
  private final Runnable tick=new Runnable(){public void run(){sync();}};
  private final BroadcastReceiver receiver=new BroadcastReceiver(){public void onReceive(Context c,Intent i){
-  if(AudioManager.ACTION_AUDIO_BECOMING_NOISY.equals(i.getAction())) finishPlayback();else sync();
+  if(AudioManager.ACTION_AUDIO_BECOMING_NOISY.equals(i.getAction())) finishPlayback();else{sleep.replan(System.currentTimeMillis(),new PlanStore(PlaybackService.this).now());sync();}
  }};
  @Override public void onCreate(){super.onCreate();
-  music=new MusicStore(this);
+  music=new MusicStore(this);sleep=new SleepStore(this);sleep.endSession();
   audio=(AudioManager)getSystemService(AUDIO_SERVICE);
   NotificationChannel channel=new NotificationChannel("playback","Music schedule",NotificationManager.IMPORTANCE_LOW);
   channel.setSound(null,null);channel.enableVibration(false);
@@ -51,13 +53,15 @@ public class PlaybackService extends Service {
   if(STOP.equals(action)){finishPlayback();return START_NOT_STICKY;}
   if(PAUSE.equals(action)){pausePlayback();return START_NOT_STICKY;}
   if(RESUME.equals(action)){resumePlayback();return START_NOT_STICKY;}
-  if(PLAN.equals(action)){if(running)sync();else stopSelf();return START_NOT_STICKY;}
+  if(PLAN.equals(action)){if(running){sleep.replan(System.currentTimeMillis(),new PlanStore(this).now());sync();}else stopSelf();return START_NOT_STICKY;}
+  if(CANCEL_SLEEP.equals(action)){sleep.cancel();if(running)sync();else stopSelf();return START_NOT_STICKY;}
+  if(SLEEP.equals(action)){if(running)sync();else{sleep.endSession();stopSelf();}return START_NOT_STICKY;}
   if(SOUND.equals(action)){if(running){music.state().queue.failures=0;try{if(new SoundStore(this).id().equals("local")){if(!sourceId.equals("local"))savePosition();prepareSound();}else loadSound();}catch(Exception e){fail("Cannot open that sound. Choose another sound.");}}else stopSelf();return START_NOT_STICKY;}
   if(NEXT.equals(action)||PREVIOUS.equals(action)){if(running)skip(PREVIOUS.equals(action));else stopSelf();return START_NOT_STICKY;}
   if(MODE.equals(action)){if(running)sync();else stopSelf();return START_NOT_STICKY;}
   if(VOLUME.equals(action)){setVolume();return START_NOT_STICKY;}
   if(START.equals(action)&&!running){
-   ending=false;music.state().queue.failures=0;error="";status="Loading music";
+   ending=false;sleep.cancel();music.state().queue.failures=0;error="";status="Loading music";
    SoundStore sounds=new SoundStore(this);sourceId=sounds.id();uri=sounds.uri();title=sounds.title();
    if(sourceId.equals("local")&&uri.isEmpty()){fail("Choose a local audio file first.");return START_NOT_STICKY;}
    try{
@@ -140,6 +144,8 @@ public class PlaybackService extends Service {
  private void sync(){
   if(!running||ending)return;
   handler.removeCallbacks(tick);
+  SleepPlan sleepPlan=sleep.load();long sleepRemaining=sleepPlan.remaining(SystemClock.elapsedRealtime(),System.currentTimeMillis());
+  if(sleepPlan.due(SystemClock.elapsedRealtime(),System.currentTimeMillis())){sleep.expired();error="";finishPlayback();return;}
   // Renew the bounded lock while the explicitly started session is running.
   if(wake!=null)wake.acquire(3600000L);
   long sampledAt=SystemClock.uptimeMillis();
@@ -151,7 +157,7 @@ public class PlaybackService extends Service {
    session.setMetadata(new MediaMetadata.Builder().putString(MediaMetadata.METADATA_KEY_TITLE,title).putString(MediaMetadata.METADATA_KEY_ARTIST,"Pauso").build());
    session.setPlaybackState(new PlaybackState.Builder().setActions(PlaybackState.ACTION_STOP|(sourceId.equals("local")?PlaybackState.ACTION_SKIP_TO_NEXT|PlaybackState.ACTION_SKIP_TO_PREVIOUS:0)|(gate.isPaused()?PlaybackState.ACTION_PLAY:PlaybackState.ACTION_PAUSE)).setState(gate.shouldPlay(prepared,hasFocus,timing)?PlaybackState.STATE_PLAYING:PlaybackState.STATE_PAUSED,prepared&&output!=null?output.position():0,1f).build());
    ((NotificationManager)getSystemService(NOTIFICATION_SERVICE)).notify(ID,notification());
-   handler.postAtTime(tick,sampledAt+timing.refresh);
+   handler.postAtTime(tick,sampledAt+(sleepPlan.active()?Math.min(timing.refresh,Math.max(1,sleepRemaining)):timing.refresh));
   }catch(Exception e){fail("Playback stopped. Try selecting the file again.");}
  }
  private int minuteIcon(int minutes){
@@ -183,7 +189,9 @@ public class PlaybackService extends Service {
   content.setContentDescription(R.id.countdown_phase,stateDescription);
   content.setViewVisibility(R.id.countdown_phase,View.VISIBLE);
   content.setViewVisibility(R.id.countdown_paused,View.GONE);
-  content.setTextViewText(R.id.countdown_track,title);
+  SleepPlan sleepPlan=sleep.load();long elapsed=SystemClock.elapsedRealtime(),wall=System.currentTimeMillis();
+  String sleepEnd=new java.text.SimpleDateFormat("HH:mm",java.util.Locale.getDefault()).format(new java.util.Date(sleepPlan.endTime(elapsed,wall)));
+  content.setTextViewText(R.id.countdown_track,sleepPlan.active()?"☾ "+sleepEnd+" · "+title:title);
   content.setOnClickPendingIntent(R.id.countdown_stop,stop);
   boolean local=sourceId.equals("local");
   content.setViewVisibility(R.id.countdown_previous,View.GONE);content.setViewVisibility(R.id.countdown_next,View.GONE);
@@ -204,6 +212,14 @@ public class PlaybackService extends Service {
   expanded.setViewVisibility(R.id.countdown_previous,local?View.VISIBLE:View.GONE);expanded.setViewVisibility(R.id.countdown_next,local?View.VISIBLE:View.GONE);
   expanded.setOnClickPendingIntent(R.id.countdown_previous,PendingIntent.getService(this,4,new Intent(this,PlaybackService.class).setAction(PREVIOUS),PendingIntent.FLAG_IMMUTABLE|PendingIntent.FLAG_UPDATE_CURRENT));
   expanded.setOnClickPendingIntent(R.id.countdown_next,PendingIntent.getService(this,5,new Intent(this,PlaybackService.class).setAction(NEXT),PendingIntent.FLAG_IMMUTABLE|PendingIntent.FLAG_UPDATE_CURRENT));
+  expanded.setViewVisibility(R.id.sleep_info,sleepPlan.active()?View.VISIBLE:View.GONE);
+  if(sleepPlan.active()){
+   expanded.setContentDescription(R.id.sleep_timer,"Sleep · time until playback stops");
+   expanded.setChronometerCountDown(R.id.sleep_timer,true);expanded.setChronometer(R.id.sleep_timer,elapsed+sleepPlan.remaining(elapsed,wall),null,true);
+   expanded.setTextViewText(R.id.sleep_end,(sleepPlan.mode==SleepPlan.PERIOD?"Period ends ":"Sleep ends ")+sleepEnd);
+   PendingIntent cancelSleep=PendingIntent.getService(this,6,new Intent(this,PlaybackService.class).setAction(CANCEL_SLEEP),PendingIntent.FLAG_IMMUTABLE|PendingIntent.FLAG_UPDATE_CURRENT);
+   expanded.setOnClickPendingIntent(R.id.sleep_cancel,cancelSleep);
+  }
   return new Notification.Builder(this,"playback")
    .setSmallIcon(icon).setContentTitle(status+" · Pauso").setContentText(label)
    .setWhen(System.currentTimeMillis()+remaining).setShowWhen(true)
@@ -216,7 +232,7 @@ public class PlaybackService extends Service {
  private void fail(String message){error=message;finishPlayback();}
  private void finishPlayback(){finishPlayback(true);}
  private void finishPlayback(boolean save){
-  if(ending)return;ending=true;running=false;status="Ready";handler.removeCallbacksAndMessages(null);
+  if(ending)return;ending=true;running=false;status="Ready";if(sleep!=null)sleep.endSession();handler.removeCallbacksAndMessages(null);
   generation++;if(save)savePosition();if(output!=null){output.release();output=null;}
   prepared=false;
   if(focus!=null){audio.abandonAudioFocusRequest(focus);focus=null;}hasFocus=false;

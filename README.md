@@ -1,4 +1,4 @@
-# Pauso — Quiet Rhythm · Android 0.13
+# Pauso — Quiet Rhythm · Android 0.14
 
 Offline music with scheduled quiet intervals, selectable rhythms, and notification controls. Android 8 or later.
 
@@ -16,6 +16,22 @@ Cancel leaves the current plan unchanged. Switching a rhythm updates the timer i
 In the notification, the LEFT colored icon is status: green music = playing; amber pause = manually paused (or audio interrupted); blue cup = scheduled rest. The RIGHT buttons are actions: pause/play and square Stop. Manual pause keeps the clock counting; only Resume restarts music, and the selected quiet intervals still apply. Stop ends the session and removes the notification.
 
 The status-bar number is remaining whole minutes rounded up; values above 99 appear as 99+. Actual notification layout depends on the phone system.
+
+## Sleep timer (0.14)
+Start playback, then tap **Sleep timer** below Rhythms. Choose 15/30/60/90 minutes, Custom (1–720), or finish this play period. If currently in a break, the period option explicitly says Stop now. Idle Sleep settings explain that Play is required; choosing Sleep never starts audio automatically.
+
+- Sleep stops the entire session, saves the recorded track position and removes the notification. Nothing automatically resumes after it finishes. Explicit Stop, playback errors, an exhausted queue or service termination cancel the armed Sleep setting.
+- Duration counts elapsed time even while manually paused or screen-off; clock/timezone/Rhythm changes do not extend it. Finish-period stops before the upcoming rest; explicit Rhythm/clock/timezone changes recalculate that boundary. Merely reaching a boundary never rolls the deadline into another cycle.
+- The moon row shows the selected kind, live remaining time, local stop time, Change and Cancel. Playing / Paused / Break remains independent. Compact notification keeps its large Rhythm countdown, adding the moon/end time on the track line. Expand for a separate Sleep countdown and cancel action.
+- A finished message remains until the next Play or Sleep choice. Only the last selected duration is remembered across sessions. There is no Wake mode, alarm, recurring timer or restart after reboot/process death. No new permissions are needed.
+
+### Bounded Sleep phone test
+1. Start a recording, set Custom Sleep to 1 minute and lock the screen. Confirm it fully stops near that deadline and does not restart after the next rest. Press Play and confirm the recording continues from the saved position.
+2. Repeat while manually paused: Sleep must still expire and remove the notification. Try cancellation from both main screen and expanded notification; normal playback/rest timing must remain.
+3. With a short 1/1 Start now Rhythm, choose This play period. Confirm it stops at the beginning of rest. Set it while already resting and verify Stop now ends the session immediately.
+4. While Sleep is active, switch tracks/sounds, then change Rhythm: duration end stays fixed, period end follows the new Rhythm. Stop and start another session; the old deadline must never stop it.
+
+Deadline/store tests, previous regressions and APK compilation are automated. Lock-screen timing, visual layout, exact audio stop position and physical in-place upgrades still need the phone test above.
 
 ## Phone music and playlists (0.13)
 Open **Sounds → Phone music & playlists**. Phone music requests audio read permission only when used; Android 13+ uses Music and audio permission. Android 8–12 uses legacy read storage permission. There is no all-files permission. Only indexed shared audio is scanned; hidden, private and DRM offline files may not appear. Denial leaves Add files available.

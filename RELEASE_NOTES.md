@@ -1,8 +1,9 @@
-Improved update-check reliability.
+Sleep timer is now available below Rhythms.
 
-- Update information now has a direct small-file address plus the original GitHub release fallback.
-- Slower connections get more time; failed checks can retry sooner.
-- Manual errors offer Retry and a browser download page.
-- Local music, playlists, shuffle, repeat modes and quiet intervals are unchanged.
+- Stop after 15, 30, 60 or 90 minutes, or choose a custom duration.
+- Finish the current play period and stop when its next break starts. If already resting, Stop now is offered.
+- A moon indicator shows the Sleep type, remaining time and stop time. Expand the notification for its own countdown and Cancel control.
+- Sleep keeps counting while manually paused. When it ends, the session stops completely and will not auto-resume.
+- Manual Stop cancels Sleep; recorded music position is retained. Existing music, playlists and Rhythms are preserved.
 
-If your older Pauso cannot check for updates, install this APK over the old app once to get the fix. Do not uninstall first.
+No Wake mode or extra permissions are included.

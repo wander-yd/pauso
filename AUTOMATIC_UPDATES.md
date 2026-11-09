@@ -13,7 +13,7 @@ The current local-music milestone adds MediaStore browsing, playlists and queue 
 - Every branch/PR runs tests and compiles an unsigned, aligned APK without production signing credentials. No pull_request_target.
 - Only a main push/manual dispatch can publish, and only after PAUSO_PUBLISH_ENABLED is explicitly true. Tests must pass first.
 - A publishing job signs the verified APK, confirms the existing certificate, creates update metadata, uploads to a draft release, and makes it latest only when complete. Published versions are not silently replaced. Failed builds/uploads keep the prior latest release.
-- CI versionCode = 1000 + workflow run number; versionName = 0.13.<run number>. Keep this workflow's numbering history. A publishing guard refuses versionCode regression if the workflow is recreated/reset.
+- CI versionCode = 1000 + workflow run number; versionName = 0.14.<run number>. Keep this workflow's numbering history. A publishing guard refuses versionCode regression if the workflow is recreated/reset.
 - App checks at most once per 24h when opened and offers manual checking. At most one automatic prompt per available version. No app-downloaded installer or silent installation. Browser downloads, Android confirms.
 - Manifest package, integer version, min Android version, SHA shape and exact approved GitHub asset URL are validated. Response size, redirect hosts and timeouts are bounded. Offline/errors do not affect sounds or rhythms.
 

@@ -25,7 +25,8 @@ public class MainActivity extends Activity {
  private TextView state,count,detail,file,error,planPreview;
  private ImageView stateIcon;
  private ImageButton play,stop;
- private Button choose,customButton,shuffleButton,repeatButton;
+ private Button choose,customButton,shuffleButton,repeatButton,sleepButton;
+ private ImageButton sleepCancel;private TextView sleepStatus;private SleepStore sleep;
  private ImageButton previousTrack,nextTrack;
  private MusicStore musicStore;private MusicDialog musicDialog;
  private Dial dial;
@@ -42,7 +43,7 @@ public class MainActivity extends Activity {
  private final Runnable refresh=new Runnable(){public void run(){render();handler.postDelayed(this,250);}};
  private int dp(float v){return Math.round(v*getResources().getDisplayMetrics().density);}
  @Override public void onCreate(Bundle b){
-  super.onCreate(b);prefs=getSharedPreferences("player",0);plans=new PlanStore(this);sounds=new SoundStore(this);sounds.initialize();musicStore=new MusicStore(this);updates=new UpdateClient(this);
+  super.onCreate(b);sleep=new SleepStore(this);if(!PlaybackService.running)sleep.endSession();prefs=getSharedPreferences("player",0);plans=new PlanStore(this);sounds=new SoundStore(this);sounds.initialize();musicStore=new MusicStore(this);updates=new UpdateClient(this);
   ScrollView scroll=new ScrollView(this);scroll.setFillViewport(true);scroll.setBackgroundColor(BG);scroll.setClipToPadding(false);
   LinearLayout root=new LinearLayout(this);root.setOrientation(1);root.setPadding(dp(22),dp(12),dp(22),dp(24));scroll.addView(root);
   scroll.setOnApplyWindowInsetsListener((v,insets)->{
@@ -67,6 +68,11 @@ public class MainActivity extends Activity {
   stop=iconButton(R.drawable.ic_control_stop,CARD,INK,48,13,"Stop session");LinearLayout.LayoutParams stopLP=new LinearLayout.LayoutParams(dp(48),dp(48));stopLP.leftMargin=dp(26);controls.addView(stop,stopLP);
   play.setOnClickListener(v->playOrPause());stop.setOnClickListener(v->{if(PlaybackService.running)startService(new Intent(this,PlaybackService.class).setAction(PlaybackService.STOP));});
   buildRhythm(root);
+  LinearLayout sleepRow=new LinearLayout(this);sleepRow.setGravity(Gravity.CENTER_VERTICAL);add(root,sleepRow,10);
+  ImageView moon=new ImageView(this);moon.setImageResource(R.drawable.ic_sleep);moon.setContentDescription("Sleep timer");sleepRow.addView(moon,new LinearLayout.LayoutParams(dp(22),dp(22)));
+  sleepStatus=text("Sleep off",13,MUTED);LinearLayout.LayoutParams sleepTextLP=new LinearLayout.LayoutParams(0,-2,1);sleepTextLP.leftMargin=dp(8);sleepRow.addView(sleepStatus,sleepTextLP);
+  sleepButton=button("Sleep timer",false);sleepButton.setTextSize(12);sleepRow.addView(sleepButton,new LinearLayout.LayoutParams(dp(88),dp(48)));sleepButton.setOnClickListener(v->sleepDialog());
+  sleepCancel=iconButton(R.drawable.ic_close,CARD,INK,48,14,"Cancel Sleep timer");LinearLayout.LayoutParams cancelLP=new LinearLayout.LayoutParams(dp(48),dp(48));cancelLP.leftMargin=dp(6);sleepRow.addView(sleepCancel,cancelLP);sleepCancel.setOnClickListener(v->{sleep.cancel();sleepChanged();});
   View divider=new View(this);divider.setBackgroundColor(CARD);LinearLayout.LayoutParams dividerLP=new LinearLayout.LayoutParams(-1,dp(1));dividerLP.topMargin=dp(18);dividerLP.bottomMargin=dp(12);root.addView(divider,dividerLP);
   LinearLayout music=new LinearLayout(this);music.setOrientation(0);music.setGravity(Gravity.CENTER_VERTICAL);root.addView(music);
   ImageView musicIcon=new ImageView(this);musicIcon.setImageResource(R.drawable.ic_music);musicIcon.setImageTintList(ColorStateList.valueOf(INK));musicIcon.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);music.addView(musicIcon,new LinearLayout.LayoutParams(dp(22),dp(22)));
@@ -107,11 +113,12 @@ public class MainActivity extends Activity {
   AudioManager manager=(AudioManager)getSystemService(AUDIO_SERVICE);
   auditionFocus=new AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT).setAudioAttributes(new AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_MEDIA).setContentType(AudioAttributes.CONTENT_TYPE_MUSIC).build()).setOnAudioFocusChangeListener(change->{if(change<0){stopPreview();message.setText("Preview ended");}}).build();
   if(manager.requestAudioFocus(auditionFocus)!=AudioManager.AUDIOFOCUS_REQUEST_GRANTED){stopPreview();message.setText("Other audio is busy. Try again later.");return;}
+  final SleepPlan previewSleep=sleep.load();
   message.setText("Previewing "+sounds.title(id)+" · 5 seconds");
   try{
    audition=new AudioOutput(this,id,sounds.uri(),0,()->{
-    if(token!=auditionToken||audition==null)return;audition.setVolume(Math.min(.35f,sounds.volume()/100f));audition.setPlaying(true);
-    handler.postDelayed(endPreview,5000);handler.postDelayed(()->{if(token+1==auditionToken)message.setText("Preview finished · tap Use to select");},5100);
+    if(token!=auditionToken||audition==null)return;SleepPlan sleepPreview=previewSleep;long previewLimit=sleepPreview.active()?Math.min(5000,sleepPreview.remaining(SystemClock.elapsedRealtime(),System.currentTimeMillis())):5000;if(previewLimit<=0){stopPreview();message.setText("Sleep finished");return;}audition.setVolume(Math.min(.35f,sounds.volume()/100f));audition.setPlaying(true);
+    handler.postDelayed(endPreview,previewLimit);handler.postDelayed(()->{if(token+1==auditionToken)message.setText("Preview finished · tap Use to select");},5100);
    },()->{if(token==auditionToken){stopPreview();message.setText("Could not preview this sound.");}});
   }catch(Exception e){stopPreview();message.setText("Could not preview this sound.");}
  }
@@ -160,6 +167,28 @@ public class MainActivity extends Activity {
   Intent i=new Intent(Intent.ACTION_OPEN_DOCUMENT).setType("audio/*").addCategory(Intent.CATEGORY_OPENABLE).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION|Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
   try{startActivityForResult(i,7);}catch(ActivityNotFoundException e){PlaybackService.error="No file picker found on this device.";render();}
  }
+ private void sleepChanged(){if(PlaybackService.running)startService(new Intent(this,PlaybackService.class).setAction(PlaybackService.SLEEP));render();}
+ private void sleepDialog(){
+  stopPreview();
+  if(!PlaybackService.running){new AlertDialog.Builder(this).setTitle("Sleep timer").setMessage("Start playback first, then choose when this session should end. Sleep will not start music automatically.").setPositiveButton("OK",null).show();return;}
+  LinearLayout box=new LinearLayout(this);box.setOrientation(1);box.setPadding(dp(20),dp(8),dp(20),dp(8));
+  add(box,text("Stop playback completely. It will not resume after the next break. Pausing music does not pause Sleep.",13,MUTED),0);
+  ScrollView scroll=new ScrollView(this);scroll.addView(box);
+  AlertDialog dialog=new AlertDialog.Builder(this).setTitle("Sleep timer").setView(scroll).setNegativeButton("Close",null).create();
+  int[] minutes={15,30,60,90};for(int row=0;row<2;row++){LinearLayout line=new LinearLayout(this);add(box,line,8);for(int col=0;col<2;col++){int n=minutes[row*2+col];Button b=button(n+" minutes",false);b.setTextSize(14);LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(0,dp(48),1);if(col>0)lp.leftMargin=dp(8);line.addView(b,lp);b.setOnClickListener(v->{if(PlaybackService.running){sleep.duration(n,SystemClock.elapsedRealtime());sleepChanged();}dialog.dismiss();});}}
+  Button custom=button("Custom duration…",false);add(box,custom,8);custom.setOnClickListener(v->{dialog.dismiss();customSleepDialog();});
+  Button period=button("Finish this play period",false);add(box,period,10);
+  Runnable updatePeriod=()->{Schedule.Snapshot phase=plans.now();period.setText(phase.quiet?"Already on break · stop now":"This play period ends · "+time(System.currentTimeMillis()+phase.remaining));};
+  final Runnable live=new Runnable(){public void run(){updatePeriod.run();if(dialog.isShowing())handler.postDelayed(this,1000);}};
+  period.setOnClickListener(v->{if(PlaybackService.running){sleep.period(System.currentTimeMillis(),plans.now());sleepChanged();}dialog.dismiss();});
+  if(sleep.load().active()){Button cancel=button("Cancel Sleep",false);add(box,cancel,8);cancel.setOnClickListener(v->{sleep.cancel();sleepChanged();dialog.dismiss();});}
+  dialog.setOnShowListener(d->live.run());dialog.setOnDismissListener(d->handler.removeCallbacks(live));dialog.show();if(dialog.getWindow()!=null)dialog.getWindow().setBackgroundDrawable(shape(BG,24));
+ }
+ private void customSleepDialog(){
+  EditText input=new EditText(this);input.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);input.setSingleLine();input.setText(String.valueOf(sleep.lastMinutes()));styleInput(input);
+  LinearLayout box=new LinearLayout(this);box.setOrientation(1);box.setPadding(dp(24),dp(12),dp(24),dp(8));box.addView(text("Stop after 1–720 minutes",14,MUTED));box.addView(input);
+  AlertDialog d=new AlertDialog.Builder(this).setTitle("Sleep duration").setView(box).setNegativeButton("Cancel",null).setPositiveButton("Enable",null).create();d.setOnShowListener(x->d.getButton(-1).setOnClickListener(v->{Integer minutes=validDuration(input);if(minutes==null)return;if(PlaybackService.running){sleep.duration(minutes,SystemClock.elapsedRealtime());sleepChanged();}d.dismiss();}));d.show();if(d.getWindow()!=null)d.getWindow().setBackgroundDrawable(shape(BG,24));
+ }
  private void buildRhythm(LinearLayout root){
   TextView heading=text("Rhythms",20,INK);heading.setTypeface(android.graphics.Typeface.create("sans-serif-medium",0));add(root,heading,22);
   for(int row=0;row<2;row++){
@@ -184,7 +213,7 @@ public class MainActivity extends Activity {
   Schedule.Snapshot t=rhythm.at(now,TimeZone.getDefault());
   return rhythm.work+" min Play · "+rhythm.rest+" min Break\n"+(t.quiet?"Break ends at ":"Next break at ")+time(now+t.remaining);
  }
- private void planChanged(){if(PlaybackService.running)startService(new Intent(this,PlaybackService.class).setAction(PlaybackService.PLAN));lastSelected=-99;render();}
+ private void planChanged(){if(sleep.load().active())stopPreview();if(PlaybackService.running)startService(new Intent(this,PlaybackService.class).setAction(PlaybackService.PLAN));lastSelected=-99;render();}
  private Integer validDuration(EditText input){
   try{int value=Integer.parseInt(input.getText().toString());if(value<1||value>720)throw new IllegalArgumentException();input.setError(null);return value;}
   catch(Exception e){if(input.getError()==null)input.setError("Use 1–720 minutes");return null;}
@@ -238,8 +267,13 @@ public class MainActivity extends Activity {
  }
  @Override protected void onResume(){super.onResume();handler.removeCallbacks(refresh);refresh.run();if(updates!=null)updates.check(false);}
  @Override protected void onPause(){stopPreview();handler.removeCallbacks(refresh);super.onPause();}
+ private String sleepCountdown(long millis){long seconds=(millis+999)/1000;return seconds>=3600?String.format(Locale.getDefault(),"%d:%02d:%02d",seconds/3600,seconds/60%60,seconds%60):String.format(Locale.getDefault(),"%02d:%02d",seconds/60,seconds%60);}
  private void render(){
   if(state==null)return;
+  if(!PlaybackService.running)sleep.endSession();
+  SleepPlan sleepPlan=sleep.load();long sleepLeft=sleepPlan.remaining(SystemClock.elapsedRealtime(),System.currentTimeMillis());
+  sleepStatus.setText(sleepPlan.active()?(sleepPlan.mode==SleepPlan.DURATION?"Sleep · ":"This play period · ")+sleepCountdown(sleepLeft)+"\nStops at "+time(sleepPlan.endTime(SystemClock.elapsedRealtime(),System.currentTimeMillis())):sleep.message().isEmpty()?"Sleep off":sleep.message());
+  sleepStatus.setTextColor(sleepPlan.active()?ACCENT:MUTED);sleepButton.setText(sleepPlan.active()?"Change":"Sleep timer");sleepCancel.setVisibility(sleepPlan.active()?View.VISIBLE:View.GONE);
   boolean active=PlaybackService.running,paused=active&&"Paused".equals(PlaybackService.status);Schedule.Snapshot timing=plans.now();long seconds=(timing.remaining+999)/1000;
   count.setTextSize(seconds>=3600?35:48);count.setText(seconds>=3600?String.format(Locale.getDefault(),"%d:%02d:%02d",seconds/3600,seconds/60%60,seconds%60):String.format(Locale.getDefault(),"%02d:%02d",seconds/60,seconds%60));
   String label;int icon;
