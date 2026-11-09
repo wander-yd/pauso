@@ -61,7 +61,7 @@ public final class MusicDialog extends Dialog {
  }
  public void scan(){
   if(closed)return;
-  if(activity.checkSelfPermission(MediaLibrary.permission())!=android.content.pm.PackageManager.PERMISSION_GRANTED){if(!playlistsTab)subtitle.setText("Audio access is off. Tap Allow access, or Add files.");if(!playlistsTab){Button allow=button("Allow audio access",()->host.permission());actions.addView(allow,0);}return;}
+  if(activity.checkSelfPermission(MediaLibrary.permission())!=android.content.pm.PackageManager.PERMISSION_GRANTED){render();if(!playlistsTab)subtitle.setText("Audio access is off. Tap Allow access, or Add files.");if(!playlistsTab){Button allow=button("Allow audio access",()->host.permission());actions.addView(allow,0);}return;}
   int generation=++scanGeneration;if(!playlistsTab)subtitle.setText("Reading phone music…");Context context=activity.getApplicationContext();
   worker.execute(()->{try{ArrayList<Track> found=MediaLibrary.scan(context);main.post(()->{if(closed||generation!=scanGeneration)return;device.clear();device.addAll(found);store.state().restored(uris(found));store.save();selected.retainAll(uris(found));render();if(found.isEmpty()&&!playlistsTab)subtitle.setText("No indexed audio found. Try Add files or Refresh phone after downloading music.");});}catch(Exception e){main.post(()->{if(closed||generation!=scanGeneration)return;subtitle.setText("Cannot read phone music. Check audio permission, or use Add files.");});}});
  }
