@@ -1,7 +1,8 @@
-Pauso now supports local music libraries and playlists.
+Improved update-check reliability.
 
-- Browse and search indexed phone audio, or add multiple files manually. Audio access is requested only when browsing.
-- Save playlists, rename them, reorder tracks and remove entries without deleting audio files.
-- Shuffle, repeat one song, repeat the playlist, or play once through.
-- Previous/next controls are available in the app and expanded notification; the compact countdown stays large.
-- Quiet intervals and manual pause still apply to every track. Install over Pauso to retain your existing settings.
+- Update information now has a direct small-file address plus the original GitHub release fallback.
+- Slower connections get more time; failed checks can retry sooner.
+- Manual errors offer Retry and a browser download page.
+- Local music, playlists, shuffle, repeat modes and quiet intervals are unchanged.
+
+If your older Pauso cannot check for updates, install this APK over the old app once to get the fix. Do not uninstall first.

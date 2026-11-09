@@ -39,7 +39,7 @@ Open **Sounds → Phone music & playlists**. Phone music requests audio read per
 Queue/state/legacy migration policy tests and full APK compilation are automated. Physical permission prompts, file-provider grants, drag layout, audio callbacks and lock-screen integration remain unverified here.
 
 ## Update checking (0.12 — active)
-Pauso checks for a new release at most once per 24 hours when opened. Use the Check for updates button at the bottom for a manual check. New versions show a plain update summary; Download update opens the browser and Android asks you to confirm installation. Playback and timers do not depend on successful checks. There is no silent installer permission or in-app download manager.
+Pauso checks for a new release at most once per 24 hours after a successful check when opened; failed checks may retry after one hour. A small direct CDN manifest is tried before the release-asset fallback. Use the Check for updates button at the bottom for a manual check. New versions show a plain update summary; Download update opens the browser and Android asks you to confirm installation. Playback and timers do not depend on successful checks. There is no silent installer permission or in-app download manager.
 
 The live release repository is https://github.com/wander-yd/pauso-releases/releases. The private source repository is wander-yd/pauso. GitHub Actions tests and builds each push; main builds are signed with the existing identity and automatically published only after validation succeeds. Published release versions are retained. Friends install the current APK once, then use the app's update prompts for subsequent releases.
 
