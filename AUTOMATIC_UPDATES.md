@@ -1,11 +1,11 @@
 # Pauso automatic updates — active
 
 ## Current state
-The owner approved activation on 2026-11-09 (Asia/Kuala_Lumpur). Source is private wander-yd/pauso; distribution is public wander-yd/pauso-releases. All four repository Secrets are configured and PAUSO_PUBLISH_ENABLED is true. The first live release, v0.12.2 (versionCode 1002), passed tests, APK packaging, audio checks, signing-certificate verification and complete release publication. Initial disabled run 42531982028 skipped publication; enabled run 42534315839 published successfully.
+The owner approved activation on 2026-11-09 (Asia/Kuala_Lumpur). Source is private wander-yd/pauso; distribution is public wander-yd/pauso-releases. All four repository Secrets are configured and PAUSO_PUBLISH_ENABLED is true. Live releases v0.12.2 (versionCode 1002) and v0.12.3 (1003) passed tests, APK packaging, audio checks, signing-certificate verification and complete release publication. Anonymous latest metadata and downloaded APK checksum/size matched 0.12.3; 0.12.2 was retained. Initial disabled run 42531982028 skipped publication; enabled run 42534315839 published successfully.
 
 The release credential is restricted to pauso-releases, Contents read/write plus required Metadata read, expiring 2027-02-07. Renew it in private repository Secrets before expiry; never share it in chat or commit it. No paid Actions overage was enabled.
 
-This documentation commit exercises the second automatic main-push release. Verify the new versionCode increases and the latest download resolves to it while v0.12.2 remains. The remaining device acceptance is an in-place Android upgrade, update prompt, and retained audio/volume/Rhythm settings; no physical device is available in this environment.
+The current local-music milestone adds MediaStore browsing, playlists and queue modes under the approved 0.13 scope in SPEC.md. The remaining device acceptance is an in-place Android upgrade, audio permission/file-provider behavior, playlist drag, real track completion/skip and rest/pause integration; no physical device is available here. The CI version prefix advances to 0.13 while retaining the workflow's monotonic run-number versionCode.
 
 ## Frozen outcome
 - Private source: wander-yd/pauso.
@@ -13,7 +13,7 @@ This documentation commit exercises the second automatic main-push release. Veri
 - Every branch/PR runs tests and compiles an unsigned, aligned APK without production signing credentials. No pull_request_target.
 - Only a main push/manual dispatch can publish, and only after PAUSO_PUBLISH_ENABLED is explicitly true. Tests must pass first.
 - A publishing job signs the verified APK, confirms the existing certificate, creates update metadata, uploads to a draft release, and makes it latest only when complete. Published versions are not silently replaced. Failed builds/uploads keep the prior latest release.
-- CI versionCode = 1000 + workflow run number; versionName = 0.12.<run number>. Keep this workflow's numbering history. A publishing guard refuses versionCode regression if the workflow is recreated/reset.
+- CI versionCode = 1000 + workflow run number; versionName = 0.13.<run number>. Keep this workflow's numbering history. A publishing guard refuses versionCode regression if the workflow is recreated/reset.
 - App checks at most once per 24h when opened and offers manual checking. At most one automatic prompt per available version. No app-downloaded installer or silent installation. Browser downloads, Android confirms.
 - Manifest package, integer version, min Android version, SHA shape and exact approved GitHub asset URL are validated. Response size, redirect hosts and timeouts are bounded. Offline/errors do not affect sounds or rhythms.
 

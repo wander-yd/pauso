@@ -1,15 +1,15 @@
-# Pauso 0.12 — Automatic update preparation
+# Pauso 0.13 — Local music and playlists
 
 Goal: a new user can install Pauso and press Play without providing audio, while existing users retain their chosen files, volume, rhythms and manual-pause behavior.
 Direction: native single-screen Android layout with Forest #203A32, Sage #344B40, Champagne #E9D8AE, Ivory #F4EFE4 and Muted #A8AFA4. Existing 2×2 rhythms and custom settings remain.
 Stopping point: build and automated checks pass; deliver APK for one phone testing round. No calendar, weekday schedules, multi-segment schedules, external playback, accounts, new timers or decorative animation.
 
 ## Automatic update contract (0.12)
-The approved contract and current blockers are in AUTOMATIC_UPDATES.md. Target private source wander-yd/pauso and public distribution wander-yd/pauso-releases; no other repository may be changed. Workflows and the update-capable signed bootstrap app are prepared locally. No public APK release activation occurs before the owner reviews the exact public content and confirms the publishing switch.
+The approved contract and current blockers are in AUTOMATIC_UPDATES.md. Target private source wander-yd/pauso and public distribution wander-yd/pauso-releases; no other repository may be changed. The owner approved the public content and publishing switch; main now publishes after tests/signing checks pass.
 
 Local checks: update/version/SDK and trusted-URL policy, strict integer metadata and bounded notes; release manifest schema/checksum/version generation; fail-closed guards for draft uploads, branch conditions and production Secrets. Existing audio/timing suites retained. App Internet permission is added for update checks only; REQUEST_INSTALL_PACKAGES is intentionally absent.
 
-Remote creation, Secrets, actual GitHub workflow execution, two consecutive real releases and phone update preservation are NOT yet verified. Only next action is GitHub authentication after local review artifacts are ready. No claim of a working online update channel until these checks pass.
+Automatic publication was approved and activated on 2026-11-09. Two consecutive signed releases (0.12.2 and 0.12.3) passed live CI and anonymous metadata/APK checksum verification; the former remains available. Physical Android update preservation remains device-only. See AUTOMATIC_UPDATES.md for credential expiry and recovery.
 
 ## Offline sound contract (0.11)
 - Choose Sound has Noise (White/Pink/Brown), Nature (Forest Rain/Forest Birds), and My Audio. No empty music categories, online catalog, streaming API, ads, account or download manager.
@@ -59,7 +59,7 @@ Remote creation, Secrets, actual GitHub workflow execution, two consecutive real
 | Delivery | Signed upgrade APK plus source; stop at phone handoff | Ready after save | Same signing identity; version 11 / 0.11 |
 
 Automated checks: `ECJ_JAR=/path/to/ecj.jar ./test.sh`.
-Only next action: install Pauso 0.11 and perform the bounded Sounds phone test in README.md.
+Only next action for 0.13: run the local music phone test in README.md. Historical 0.11 evidence below is retained.
 
 ## 0.11 verification evidence
 - Existing schedule/pause/rhythm/persistence regression suites pass.
@@ -67,3 +67,12 @@ Only next action: install Pauso 0.11 and perform the bounded Sounds phone test i
 - NoiseTest: 12 sec each of actual generator output, finite/clamped samples, RMS/DC bounds, deterministic stream state and high-frequency ordering.
 - scripts/check_audio.py: PSD slopes near 0/-1/-2 across 100–8000 Hz; nature decoding, RMS, peak, >20-sec length and small loop-edge step; Ogg entries uncompressed in APK for raw descriptors.
 - APK compiles and retains signing identity; permissions unchanged. No emulator/physical-device audition was available. Numerical checks do not establish perceptual smoothness, bird-call distraction, hardware audio routing, preview focus return or screen-off reliability.
+
+## Local music MVP (approved 2026-11-09)
+Goal: browse indexed phone audio, save multiple playlists, and play sequentially, shuffled, repeat-one or repeat-all without changing Rhythms.
+Allowed: on-demand MediaStore scan (audio permission API33+, legacy storage through API32), search, refresh, multi-select, persistent document multi-import, create/rename/delete playlists, remove/reorder entries with drag, queue state persistence, previous/next in app and expanded notification; compact notification preserves the large timer. No full-disk access, music uploads, artwork, lyrics, albums or continuous background scan. Playlist deletion/removal never deletes device audio. Denied scan permission retains file picker fallback. All accessible indexed audio is shown (not IS_MUSIC-only); private/hidden/unindexed/protected files may not appear.
+Playback: selecting while active preserves manual pause and clock phase; while idle it only selects. Natural completion advances; repeat-one repeats current track; manual skip ignores repeat-one. Shuffle traverses a saved permutation with no repeated track per round; repeat-all makes another round without immediate boundary repetition when possible. Repeat-off stops at the end. Failed/inaccessible tracks are marked unavailable, skipped with a bounded one-round attempt limit; all-unavailable stops with a readable error. Current queue is a snapshot, so editing/deleting a saved playlist does not interrupt playback. Media preparation callbacks are generation-guarded. The existing selected local file migrates without losing position. File permissions referenced by saved queues/playlists are retained.
+Acceptance: deterministic queue tests cover every mode, manual skip, previous, boundaries, no-repeat shuffle, invalid/missing tracks and serialization/restart/corruption. Compile full Android app; regress timing, sounds, updates and packaging; CI green before main publication. Physical permission dialogs, large libraries, drag accessibility, audio transitions, notifications and in-place upgrade require phone testing.
+Time limit: four hours of implementation/checking; no subjective polishing beyond readable existing forest/sage style. Stop at tested release + bounded phone test.
+
+0.13 limits: scan first 10,000 indexed tracks, up to 100 playlists / 10,000 entries each, document import up to 200 files per batch. Repeat defaults to playlist (retains looping for migrated singleton files). Tap a filtered song creates a queue of the shown search results; Use playlist selects its complete stored order. Player starts only on explicit Play when idle.

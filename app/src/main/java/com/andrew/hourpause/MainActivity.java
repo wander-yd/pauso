@@ -25,7 +25,9 @@ public class MainActivity extends Activity {
  private TextView state,count,detail,file,error,planPreview;
  private ImageView stateIcon;
  private ImageButton play,stop;
- private Button choose,customButton;
+ private Button choose,customButton,shuffleButton,repeatButton;
+ private ImageButton previousTrack,nextTrack;
+ private MusicStore musicStore;private MusicDialog musicDialog;
  private Dial dial;
  private PlanStore plans;
  private SharedPreferences prefs;
@@ -40,7 +42,7 @@ public class MainActivity extends Activity {
  private final Runnable refresh=new Runnable(){public void run(){render();handler.postDelayed(this,250);}};
  private int dp(float v){return Math.round(v*getResources().getDisplayMetrics().density);}
  @Override public void onCreate(Bundle b){
-  super.onCreate(b);prefs=getSharedPreferences("player",0);plans=new PlanStore(this);sounds=new SoundStore(this);sounds.initialize();updates=new UpdateClient(this);
+  super.onCreate(b);prefs=getSharedPreferences("player",0);plans=new PlanStore(this);sounds=new SoundStore(this);sounds.initialize();musicStore=new MusicStore(this);updates=new UpdateClient(this);
   ScrollView scroll=new ScrollView(this);scroll.setFillViewport(true);scroll.setBackgroundColor(BG);scroll.setClipToPadding(false);
   LinearLayout root=new LinearLayout(this);root.setOrientation(1);root.setPadding(dp(22),dp(12),dp(22),dp(24));scroll.addView(root);
   scroll.setOnApplyWindowInsetsListener((v,insets)->{
@@ -59,7 +61,9 @@ public class MainActivity extends Activity {
   state=text("Ready",16,INK);LinearLayout.LayoutParams stateTextLP=new LinearLayout.LayoutParams(-2,-2);stateTextLP.leftMargin=dp(6);stateRow.addView(state,stateTextLP);
   detail=text("Choose your music",12,MUTED);detail.setGravity(Gravity.CENTER);detail.setMaxLines(2);detail.setPadding(0,dp(5),0,0);center.addView(detail);
   LinearLayout controls=new LinearLayout(this);controls.setOrientation(0);controls.setGravity(Gravity.CENTER);add(root,controls,8);
+  previousTrack=iconButton(R.drawable.ic_control_previous,CARD,INK,48,12,"Previous track");controls.addView(previousTrack,new LinearLayout.LayoutParams(dp(48),dp(48)));previousTrack.setOnClickListener(v->skipTrack(true));
   play=iconButton(R.drawable.ic_control_play,ACCENT,BG,72,21,"Start playback");controls.addView(play,new LinearLayout.LayoutParams(dp(72),dp(72)));
+  nextTrack=iconButton(R.drawable.ic_control_next,CARD,INK,48,12,"Next track");controls.addView(nextTrack,new LinearLayout.LayoutParams(dp(48),dp(48)));nextTrack.setOnClickListener(v->skipTrack(false));
   stop=iconButton(R.drawable.ic_control_stop,CARD,INK,48,13,"Stop session");LinearLayout.LayoutParams stopLP=new LinearLayout.LayoutParams(dp(48),dp(48));stopLP.leftMargin=dp(26);controls.addView(stop,stopLP);
   play.setOnClickListener(v->playOrPause());stop.setOnClickListener(v->{if(PlaybackService.running)startService(new Intent(this,PlaybackService.class).setAction(PlaybackService.STOP));});
   buildRhythm(root);
@@ -68,6 +72,10 @@ public class MainActivity extends Activity {
   ImageView musicIcon=new ImageView(this);musicIcon.setImageResource(R.drawable.ic_music);musicIcon.setImageTintList(ColorStateList.valueOf(INK));musicIcon.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);music.addView(musicIcon,new LinearLayout.LayoutParams(dp(22),dp(22)));
   file=text(sounds.title(),14,INK);file.setSingleLine();file.setEllipsize(TextUtils.TruncateAt.END);LinearLayout.LayoutParams fileLP=new LinearLayout.LayoutParams(0,-2,1);fileLP.leftMargin=dp(10);music.addView(file,fileLP);
   choose=button("Sounds",false);choose.setTextSize(13);choose.setMinHeight(dp(48));LinearLayout.LayoutParams chooseLP=new LinearLayout.LayoutParams(dp(76),dp(48));chooseLP.leftMargin=dp(8);music.addView(choose,chooseLP);choose.setContentDescription("Choose Sound");choose.setOnClickListener(v->soundDialog());
+  LinearLayout modeRow=new LinearLayout(this);modeRow.setOrientation(0);add(root,modeRow,10);
+  shuffleButton=button("Shuffle off",false);repeatButton=button("Repeat all",false);shuffleButton.setTextSize(13);repeatButton.setTextSize(13);LinearLayout.LayoutParams modeLP=new LinearLayout.LayoutParams(0,dp(48),1);modeRow.addView(shuffleButton,modeLP);LinearLayout.LayoutParams repeatLP=new LinearLayout.LayoutParams(0,dp(48),1);repeatLP.leftMargin=dp(8);modeRow.addView(repeatButton,repeatLP);
+  shuffleButton.setOnClickListener(v->{PlaybackQueue q=musicStore.state().queue;q.shuffle(!q.shuffle,new java.util.Random());musicStore.save();modeChanged();});
+  repeatButton.setOnClickListener(v->{PlaybackQueue q=musicStore.state().queue;q.repeat=(q.repeat+1)%3;musicStore.save();modeChanged();});
   LinearLayout volumeRow=new LinearLayout(this);volumeRow.setGravity(Gravity.CENTER_VERTICAL);volumeRow.setOrientation(0);add(root,volumeRow,4);
   TextView volumeLabel=text("Volume",12,MUTED);volumeRow.addView(volumeLabel,new LinearLayout.LayoutParams(dp(58),-2));
   SeekBar volume=new SeekBar(this);volume.setMax(100);volume.setProgress(sounds.volume());volume.setContentDescription("Player volume");volume.setProgressTintList(ColorStateList.valueOf(ACCENT));volume.setThumbTintList(ColorStateList.valueOf(ACCENT));volumeRow.addView(volume,new LinearLayout.LayoutParams(0,dp(48),1));
@@ -124,9 +132,10 @@ public class MainActivity extends Activity {
    Button use=button("Use",false);use.setTextSize(13);LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(dp(56),dp(48));lp.leftMargin=dp(6);row.addView(use,lp);use.setContentDescription("Use "+sounds.title(id));use.setOnClickListener(v->{stopPreview();sounds.select(id);soundChanged();dialog.dismiss();});
   }
   add(box,text("My Audio",18,INK),16);
+  Button library=button("Phone music & playlists",false);add(box,library,6);library.setOnClickListener(v->{stopPreview();dialog.dismiss();openMusic();});
   if(!sounds.uri().isEmpty()){
    TextView local=text(sounds.title("local"),13,MUTED);local.setMaxLines(1);local.setEllipsize(TextUtils.TruncateAt.END);add(box,local,6);
-   Button localUse=button("Use my selected file",false);add(box,localUse,6);localUse.setOnClickListener(v->{stopPreview();sounds.select("local");soundChanged();dialog.dismiss();});
+   Button localUse=button(musicStore.state().queue.tracks.size()>1?"Use current music queue":"Use my selected file",false);add(box,localUse,6);localUse.setOnClickListener(v->{stopPreview();sounds.select("local");soundChanged();dialog.dismiss();});
   }
   Button chooseLocal=button("Choose a local file…",false);add(box,chooseLocal,6);chooseLocal.setOnClickListener(v->{stopPreview();dialog.dismiss();chooseFile();});
   dialog.setOnDismissListener(d->stopPreview());dialog.show();
@@ -135,6 +144,18 @@ public class MainActivity extends Activity {
   });
   if(dialog.getWindow()!=null)dialog.getWindow().setBackgroundDrawable(shape(BG,24));
  }
+ private void modeChanged(){if(PlaybackService.running)startService(new Intent(this,PlaybackService.class).setAction(PlaybackService.MODE));render();}
+ private void skipTrack(boolean previous){
+  if(!sounds.id().equals("local"))return;
+  if(PlaybackService.running)startService(new Intent(this,PlaybackService.class).setAction(previous?PlaybackService.PREVIOUS:PlaybackService.NEXT));
+  else{PlaybackQueue q=musicStore.state().queue;boolean changed=previous?q.previous():q.advance(false,new java.util.Random());if(changed){musicStore.save();musicStore.mirror();}render();}
+ }
+ private void openMusic(){
+  stopPreview();if(musicDialog!=null&&musicDialog.isShowing())return;
+  musicDialog=new MusicDialog(this,new MusicDialog.Host(){public void permission(){requestPermissions(new String[]{MediaLibrary.permission()},18);}public void files(){Intent i=new Intent(Intent.ACTION_OPEN_DOCUMENT).setType("audio/*").addCategory(Intent.CATEGORY_OPENABLE).putExtra(Intent.EXTRA_ALLOW_MULTIPLE,true).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION|Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);try{startActivityForResult(i,17);}catch(ActivityNotFoundException e){Toast.makeText(MainActivity.this,"No file picker found.",Toast.LENGTH_LONG).show();}}public void selected(){soundChanged();}});musicDialog.show();
+ }
+ @Override public void onRequestPermissionsResult(int code,String[] permissions,int[] results){super.onRequestPermissionsResult(code,permissions,results);if(code==18&&musicDialog!=null&&musicDialog.isShowing())musicDialog.scan();}
+ @Override protected void onDestroy(){if(musicDialog!=null&&musicDialog.isShowing())musicDialog.dismiss();stopPreview();super.onDestroy();}
  private void chooseFile(){
   Intent i=new Intent(Intent.ACTION_OPEN_DOCUMENT).setType("audio/*").addCategory(Intent.CATEGORY_OPENABLE).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION|Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
   try{startActivityForResult(i,7);}catch(ActivityNotFoundException e){PlaybackService.error="No file picker found on this device.";render();}
@@ -201,16 +222,18 @@ public class MainActivity extends Activity {
  private Button button(String label,boolean primary){Button b=new Button(this);b.setText(label);b.setAllCaps(false);b.setTextSize(16);b.setTextColor(primary?BG:INK);b.setBackground(ripple(shape(primary?ACCENT:CARD,14)));b.setMinHeight(dp(48));b.setStateListAnimator(null);b.setElevation(0);b.setPadding(dp(8),dp(4),dp(8),dp(4));return b;}
  private ImageButton iconButton(int icon,int background,int tint,int size,int padding,String description){ImageButton b=new ImageButton(this);b.setImageResource(icon);b.setImageTintList(ColorStateList.valueOf(tint));b.setBackground(ripple(shape(background,size)));b.setPadding(dp(padding),dp(padding),dp(padding),dp(padding));b.setStateListAnimator(null);b.setElevation(0);b.setScaleType(ImageView.ScaleType.FIT_CENTER);b.setContentDescription(description);return b;}
  private void add(LinearLayout root,View view,int top){LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-1,-2);p.topMargin=dp(top);root.addView(view,p);}
- @Override protected void onActivityResult(int request,int result,Intent data){super.onActivityResult(request,result,data);if(request!=7||result!=RESULT_OK||data==null||data.getData()==null)return;
-  Uri uri=data.getData();
-  try{
-   getContentResolver().takePersistableUriPermission(uri,Intent.FLAG_GRANT_READ_URI_PERMISSION);
-   String title="Selected audio";
-   try(Cursor c=getContentResolver().query(uri,new String[]{OpenableColumns.DISPLAY_NAME},null,null,null)){if(c!=null&&c.moveToFirst())title=c.getString(0);}
-   String old=prefs.getString("uri","");
-   prefs.edit().putString("sound_id","local").putString("uri",uri.toString()).putString("title",title).putInt("position",uri.toString().equals(old)?prefs.getInt("position",0):0).apply();
-   if(!old.isEmpty()&&!old.equals(uri.toString()))try{getContentResolver().releasePersistableUriPermission(Uri.parse(old),Intent.FLAG_GRANT_READ_URI_PERMISSION);}catch(Exception ignored){}
-   PlaybackService.error="";file.setText(title);soundChanged();
+ @Override protected void onActivityResult(int request,int result,Intent data){super.onActivityResult(request,result,data);
+  if(request==17){if(result!=RESULT_OK||data==null)return;java.util.ArrayList<Uri> uris=new java.util.ArrayList<>();
+   if(data.getClipData()!=null){for(int i=0;i<data.getClipData().getItemCount();i++)uris.add(data.getClipData().getItemAt(i).getUri());}else if(data.getData()!=null)uris.add(data.getData());
+   if(uris.size()>200){Toast.makeText(this,"Please add at most 200 files at a time.",Toast.LENGTH_LONG).show();return;}
+   android.content.Context app=getApplicationContext();new Thread(()->{java.util.ArrayList<Track> tracks=new java.util.ArrayList<>();for(Uri uri:uris)try{app.getContentResolver().takePersistableUriPermission(uri,Intent.FLAG_GRANT_READ_URI_PERMISSION);tracks.add(MediaLibrary.document(app,uri));}catch(Exception ignored){}
+    runOnUiThread(()->{if(isFinishing()||isDestroyed())return;openMusic();musicDialog.imported(tracks);if(tracks.size()!=uris.size())Toast.makeText(this,"Some files could not retain access. Choose downloaded audio on your phone.",Toast.LENGTH_LONG).show();});},"Pauso file import").start();return;
+  }
+  if(request!=7||result!=RESULT_OK||data==null||data.getData()==null)return;
+  Uri uri=data.getData();try{
+   getContentResolver().takePersistableUriPermission(uri,Intent.FLAG_GRANT_READ_URI_PERMISSION);Track track=MediaLibrary.document(this,uri);
+   int position=uri.toString().equals(sounds.uri())?prefs.getInt("position",0):0;
+   musicStore.select(java.util.Collections.singletonList(track),0);musicStore.state().queue.position=position;musicStore.save();musicStore.mirror();soundChanged();
   }catch(Exception e){PlaybackService.error="Could not retain access. Choose a downloaded audio file from your phone.";}render();
  }
  @Override protected void onResume(){super.onResume();handler.removeCallbacks(refresh);refresh.run();if(updates!=null)updates.check(false);}
@@ -229,6 +252,11 @@ public class MainActivity extends Activity {
   state.setText(label);state.setTextColor(active?INK:MUTED);
   if(lastStateIcon!=icon){stateIcon.setImageResource(icon);lastStateIcon=icon;}stateIcon.setAlpha(active?1f:.5f);
   file.setText(sounds.title());
+  boolean local=sounds.id().equals("local")&&musicStore.state().queue.current()!=null;
+  previousTrack.setVisibility(local?View.VISIBLE:View.GONE);nextTrack.setVisibility(local?View.VISIBLE:View.GONE);
+  PlaybackQueue queue=musicStore.state().queue;shuffleButton.setVisibility(local?View.VISIBLE:View.GONE);repeatButton.setVisibility(local?View.VISIBLE:View.GONE);
+  shuffleButton.setText(queue.shuffle?(queue.repeat==PlaybackQueue.ONE?"Shuffle · suspended":"Shuffle on"):"Shuffle off");shuffleButton.setTextColor(queue.shuffle&&queue.repeat!=PlaybackQueue.ONE?ACCENT:INK);
+  repeatButton.setText(queue.repeat==PlaybackQueue.OFF?"Repeat off":queue.repeat==PlaybackQueue.ALL?"Repeat playlist":"Repeat one");repeatButton.setTextColor(queue.repeat==PlaybackQueue.OFF?INK:ACCENT);
   detail.setText(timing.quiet?"until the break ends":"until your next break");
   int playIcon=active&&!paused?R.drawable.ic_control_pause:R.drawable.ic_control_play;if(lastPlayIcon!=playIcon){play.setImageResource(playIcon);lastPlayIcon=playIcon;}
   play.setContentDescription(!active?"Start playback":paused?"Resume playback":"Pause playback");

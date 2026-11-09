@@ -26,7 +26,7 @@ jobs:
           sudo apt-get install -y -qq ffmpeg python3-numpy python3-scipy
           ./scripts/ci_tools.sh
       - name: Assign monotonic CI version
-        run: python3 scripts/set_version.py --code "$((1000 + GITHUB_RUN_NUMBER))" --name "0.12.$GITHUB_RUN_NUMBER"
+        run: python3 scripts/set_version.py --code "$((1000 + GITHUB_RUN_NUMBER))" --name "0.13.$GITHUB_RUN_NUMBER"
       - name: Test and compile without production signing credentials
         env:
           ECJ_JAR: tools/ecj.jar

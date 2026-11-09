@@ -1,4 +1,4 @@
-# Pauso — Quiet Rhythm · Android 0.12
+# Pauso — Quiet Rhythm · Android 0.13
 
 Offline music with scheduled quiet intervals, selectable rhythms, and notification controls. Android 8 or later.
 
@@ -16,6 +16,27 @@ Cancel leaves the current plan unchanged. Switching a rhythm updates the timer i
 In the notification, the LEFT colored icon is status: green music = playing; amber pause = manually paused (or audio interrupted); blue cup = scheduled rest. The RIGHT buttons are actions: pause/play and square Stop. Manual pause keeps the clock counting; only Resume restarts music, and the selected quiet intervals still apply. Stop ends the session and removes the notification.
 
 The status-bar number is remaining whole minutes rounded up; values above 99 appear as 99+. Actual notification layout depends on the phone system.
+
+## Phone music and playlists (0.13)
+Open **Sounds → Phone music & playlists**. Phone music requests audio read permission only when used; Android 13+ uses Music and audio permission. Android 8–12 uses legacy read storage permission. There is no all-files permission. Only indexed shared audio is scanned; hidden, private and DRM offline files may not appear. Denial leaves Add files available.
+
+- Search title/artist; Refresh phone re-reads the media directory. The first 10,000 indexed tracks are shown. Scanning runs off the UI thread with a virtualized list.
+- Tap a track to select the shown songs as a queue (including the current search filter). Long-press to multi-select, then Add to playlist. Select shown selects the filtered results.
+- Add files supports persistent multi-selection (up to 200 files per batch) and choosing an existing/new playlist. Existing single-file selection remains available. Files are never copied or deleted.
+- Playlists supports create, rename, delete, remove and reorder. Hold the ≡ handle to drag (clear search first), or tap it for accessible Move up / Move down / Remove actions. Up to 100 playlists and 10,000 tracks per list; duplicate URIs are ignored. Tap Use playlist for the complete list.
+- The current queue is a snapshot: editing/deleting a playlist does not interrupt it. Selecting while stopped never starts audio. Manual pause and the Rhythm phase survive source selection and next/previous.
+- Main-page Shuffle and Repeat controls apply to My Audio. Repeat cycles playlist → one → off → playlist. Repeat-one suspends automatic shuffle traversal; explicit next/previous still move through the queue. Shuffle visits each entry once per round; repeat-playlist starts another round. Repeat-off ends the session at the last track. A single-file upgrade retains looping by default.
+- Queue, order, selection, modes and saved stop/pause position are remembered. Missing/inaccessible tracks are marked and skipped with a one-round failure limit. Refresh after regranting audio permission or re-add a document to retry repaired files.
+- Compact notification retains the large countdown and pause/stop. Expand it for previous/next. Media-session headset skip actions are supported for local queues.
+
+### Bounded local music phone test
+1. Install over the existing app; confirm file, volume and Rhythm remain. Open the library, deny audio permission and use Add files; then allow permission and Refresh phone. Search and multi-select a few songs.
+2. Create two playlists; import multiple files, add duplicates, rename, drag/reorder and remove a track. Delete one playlist and confirm original files remain. Reopen Pauso and confirm the other list persists.
+3. With 2–3 short tracks, test off (stops after last), playlist loop, repeat-one and shuffled repeat. Try next/previous and expand the notification. A round of shuffle must not repeat entries.
+4. While manually paused, select a different playlist and skip a song: no audio should start until Resume. Apply a 1/1 Start now Rhythm, lock the phone and verify rest pauses at the boundary and resumes at the same position. Skip during rest and confirm it stays silent until work resumes.
+5. Remove/move one file, try playback and check it is skipped/flagged; an all-unavailable queue must stop without spinning. Restore permission/Refresh or re-add the file, then try again.
+
+Queue/state/legacy migration policy tests and full APK compilation are automated. Physical permission prompts, file-provider grants, drag layout, audio callbacks and lock-screen integration remain unverified here.
 
 ## Update checking (0.12 — active)
 Pauso checks for a new release at most once per 24 hours when opened. Use the Check for updates button at the bottom for a manual check. New versions show a plain update summary; Download update opens the browser and Android asks you to confirm installation. Playback and timers do not depend on successful checks. There is no silent installer permission or in-app download manager.
@@ -86,4 +107,4 @@ A foreground service and bounded, renewed CPU wake lock keep active schedules wo
 
 To roll back, stop the app and reinstall the previous version if needed (Android may require uninstalling the newer version first, which clears app settings). Keep the audio file separately. No cloud account or data migration is involved.
 
-State: update checking and automatic publication are active; local tests and the first live CI/signing/release passed. In-place phone upgrade remains unverified. No calendar, weekday schedules, playlists, YouTube, floating overlay or new scheduling behavior in this release.
+State: update checking and automatic publication are active; local tests and the first live CI/signing/release passed. In-place phone upgrade remains unverified. Local music and playlist regression tests/compilation pass; the bounded phone test above remains. No calendar, weekday schedules, YouTube, floating overlay, artwork or lyrics in this release.

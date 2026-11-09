@@ -15,6 +15,9 @@ public final class AudioOutput {
   }catch(Exception e){failed.run();}
  }};
  public AudioOutput(Context c,String id,String uri,int position,Runnable onReady,Runnable onError)throws Exception{
+  this(c,id,uri,position,true,onReady,onError,()->{});
+ }
+ public AudioOutput(Context c,String id,String uri,int position,boolean loop,Runnable onReady,Runnable onError,Runnable onComplete)throws Exception{
   failed=()->handler.post(()->{if(!released)onError.run();});
   if(SoundStore.noise(id)){
    noise=new NoiseTrack(id,()->handler.post(failed));ready=true;handler.post(()->{if(!released)onReady.run();});return;
@@ -24,7 +27,7 @@ public final class AudioOutput {
    media.setAudioAttributes(new AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_MEDIA).setContentType(AudioAttributes.CONTENT_TYPE_MUSIC).build());
    if(id.equals("local"))media.setDataSource(c,Uri.parse(uri));
    else{int raw=id.equals("rain")?R.raw.forest_rain:R.raw.forest_birds;try(android.content.res.AssetFileDescriptor afd=c.getResources().openRawResourceFd(raw)){media.setDataSource(afd.getFileDescriptor(),afd.getStartOffset(),afd.getLength());}}
-   media.setLooping(true);media.setVolume(0,0);media.setOnErrorListener((p,w,e)->{failed.run();return true;});
+   media.setLooping(loop);media.setOnCompletionListener(p->{wanted=false;if(!released)onComplete.run();});media.setVolume(0,0);media.setOnErrorListener((p,w,e)->{failed.run();return true;});
    media.setOnPreparedListener(p->{if(released)return;
     Runnable done=()->{if(!released){ready=true;onReady.run();}};
     if(position>0&&position<p.getDuration()){p.setOnSeekCompleteListener(mp->{mp.setOnSeekCompleteListener(null);done.run();});p.seekTo(position,MediaPlayer.SEEK_CLOSEST);}else done.run();
