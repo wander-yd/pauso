@@ -100,3 +100,5 @@ Acceptance: actual source tests for counterclockwise motion, stationary pause, b
 Only next action: implement native visual model/view, then wire existing service state. Build stays on a test branch and is not automatically published to main.
 
 Explicit playlist Play/Shuffle starts or resumes the session; selecting an ordinary sound/track retains the existing paused/stopped behavior. Explicit Shuffle chooses a random first track and leaves repeat-one for repeat-all. Folder browsing and active-session audition remain deferred.
+
+Preview 2: short straight tonearm attached to a visible right-side plinth; subdued metal fades toward the dark bearing, small cartridge contacts the groove. Pause raises the arm slightly instead of swinging it. Disc motion, timer and playback behavior are unchanged. Physical-device visual review remains pending.

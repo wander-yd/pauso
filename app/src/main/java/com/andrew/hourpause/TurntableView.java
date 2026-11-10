@@ -17,9 +17,9 @@ public final class TurntableView extends View {
  private final Shader chassis=new RadialGradient(290,313,340,new int[]{0xff142015,0x700f190f,0x0009120d},new float[]{0,.65f,1},Shader.TileMode.CLAMP);
  private final TurntableMotion motion=new TurntableMotion();
  private final Shader paper=new RadialGradient(252,282,125,new int[]{0xff353620,0xff202617},null,Shader.TileMode.CLAMP);
- private final Shader metal=new LinearGradient(538,0,558,0,new int[]{0xff252419,0xff8b7853,0xffcbbb94,0xff6d5b3c,0xff28271b},null,Shader.TileMode.CLAMP);
- private final Shader pivot=new RadialGradient(540,63,36,new int[]{0xffb29e76,0xff6d5c3d,0xff242319},null,Shader.TileMode.CLAMP);
- private final Shader head=new LinearGradient(-15,-5,15,33,new int[]{0xffb09a70,0xff6f5d3f,0xff353124},null,Shader.TileMode.CLAMP);
+ private final Shader metal=new LinearGradient(527,238,465,405,new int[]{0xff25291e,0xff4c4934,0xff8b7955},new float[]{0,.45f,1},Shader.TileMode.CLAMP);
+ private final Shader pivot=new RadialGradient(523,234,24,new int[]{0xff776b4e,0xff454630,0xff20291c},null,Shader.TileMode.CLAMP);
+ private final Shader head=new LinearGradient(-9,-4,10,22,new int[]{0xff756748,0xff514a34,0xff282d20},null,Shader.TileMode.CLAMP);
  private final Shader lightA=new RadialGradient(0,0,1,new int[]{0x50c6a777,0x0fb49460,0x00ac8658},new float[]{0,.45f,1},Shader.TileMode.CLAMP);
  private final Shader lightB=new RadialGradient(0,0,1,new int[]{0x49dab786,0x108e7045,0x008e7045},new float[]{0,.45f,1},Shader.TileMode.CLAMP);
  private final Shader edge=new LinearGradient(0,0,600,0,new int[]{0x0074633e,0x6077633e,0x22303320,0x0009120d},new float[]{0,.32f,.65f,1},Shader.TileMode.CLAMP);
@@ -27,7 +27,7 @@ public final class TurntableView extends View {
  private long remaining=1,segment=1;private boolean audible,resumed,reduced,immersive,quiet;
  private int currentIcon=-1;private float unitScale=1;
  public TurntableView(Context context){super(context);setFocusable(true);setContentDescription("Ready. Choose music");setLayerType(View.LAYER_TYPE_HARDWARE,null);
-  recordClip.addCircle(278,310,240,Path.Direction.CW);armPath.moveTo(548,95);armPath.lineTo(548,300);armPath.cubicTo(546,356,507,405,464,458);
+  recordClip.addCircle(278,310,240,Path.Direction.CW);armPath.moveTo(527,238);armPath.lineTo(465,405);
  }
  public void setState(String text,long left,long total,boolean playing,boolean rest,int icon){
   label=text;remaining=left;segment=total;audible=playing;quiet=rest;
@@ -64,13 +64,22 @@ public final class TurntableView extends View {
   c.save();c.clipPath(recordClip);glow(c,lightA,100,180,155,76,45);glow(c,lightB,414,475,112,59,42);c.restore();
   paint.setStyle(Paint.Style.STROKE);paint.setStrokeWidth(1);paint.setColor(0x31554c2d);c.drawOval(recordRect,paint);
   int accent=quiet?BLUE:GOLD;paint.setColor(accent);paint.setAlpha(210);paint.setStrokeWidth(1.8f);paint.setStrokeCap(Paint.Cap.BUTT);c.drawArc(recordRect,-90,(float)(360*TurntableMotion.remainingFraction(remaining,segment)),false,paint);paint.setAlpha(255);
-  circle(c,548,72,41,0xff080e09);paint.setStyle(Paint.Style.FILL);paint.setColor(-1);paint.setShader(pivot);c.drawCircle(548,72,28,paint);paint.setShader(null);
-  c.save();c.rotate((float)motion.arm(),548,72);
-  line(c,548,45,548,19,0xff28271b,19);paint.setColor(-1);paint.setShader(metal);paint.setStyle(Paint.Style.STROKE);paint.setStrokeWidth(15);c.drawLine(548,45,548,19,paint);paint.setShader(null);
-  c.save();c.translate(3,6);paint.setColor(0x80000000);paint.setStrokeWidth(14);c.drawPath(armPath,paint);c.restore();
-  paint.setColor(-1);paint.setShader(metal);paint.setStrokeWidth(9);c.drawPath(armPath,paint);paint.setShader(null);paint.setColor(0x55d7c69d);paint.setStrokeWidth(1.1f);c.drawPath(armPath,paint);
-  paint.setStyle(Paint.Style.FILL);paint.setColor(-1);paint.setShader(metal);c.drawRect(539,101,557,120,paint);paint.setShader(null);
-  c.save();c.translate(464,453);c.rotate(39);fill(c,0xff12150e);c.drawRect(-14,-3,14,41,paint);paint.setColor(-1);paint.setShader(head);c.drawRect(-15,-5,15,33,paint);paint.setShader(null);circle(c,-6,5,2.2f,0xff393425);circle(c,6,5,2.2f,0xff393425);line(c,0,36,0,48,0xffa69b78,1.1f);c.restore();c.restore();c.restore();
+  // A short straight arm mounted on a visible plinth. Pause only lifts it slightly.
+  float lift=(float)Math.max(0,Math.min(1,-motion.arm()/7));
+  circle(c,527,241,32,0xff030805);circle(c,527,238,30,0xff263021);
+  line(c,543,238,549,238,0xff3b3e2c,2);line(c,527,217,527,213,0xff3b3e2c,2);
+  c.save();c.translate(1+lift,2+lift*2);paint.setShader(null);paint.setColor(0x70000000);paint.setStyle(Paint.Style.STROKE);paint.setStrokeCap(Paint.Cap.ROUND);paint.setStrokeWidth(10);c.drawPath(armPath,paint);c.restore();
+  c.save();c.translate(0,-lift*2.5f);
+  paint.setColor(-1);paint.setShader(metal);paint.setStyle(Paint.Style.STROKE);paint.setStrokeCap(Paint.Cap.ROUND);paint.setStrokeWidth(8);c.drawPath(armPath,paint);paint.setShader(null);
+  line(c,524,251,468,401,0x237e7655,.8f);
+  c.save();c.translate(465,405);c.rotate(20);
+  fill(c,0xff172014);c.drawRect(-10,-5,10,23,paint);paint.setColor(-1);paint.setShader(head);c.drawRect(-9,-4,9,20,paint);paint.setShader(null);
+  line(c,-7,-2,-7,17,0x2baf9a70,.7f);circle(c,0,3,1.5f,0xff272b1e);
+  line(c,0,20,0,28,0xff796f50,.9f);circle(c,0,28,1,0xffa2946b);c.restore();c.restore();
+  // The cap hides the arm joint and stays attached to the chassis while the arm lifts.
+  paint.setStyle(Paint.Style.FILL);paint.setColor(-1);paint.setShader(pivot);c.drawCircle(527,238,22,paint);paint.setShader(null);
+  circle(c,527,238,7,0xff323b28);line(c,522,237,531,237,0xff57573d,.8f);
+  c.restore();
   // Fixed overlay: independent of the rotated/wobbling physical plane.
   paint.setStyle(Paint.Style.FILL);paint.setShader(null);paint.setColor(accent);paint.setTextAlign(Paint.Align.CENTER);paint.setTypeface(Typeface.create("sans-serif-light",Typeface.NORMAL));
   float textSize=clock.length()>5?54:76;float minText=28*getResources().getDisplayMetrics().scaledDensity/Math.max(.1f,unitScale);paint.setTextSize(Math.min(100,Math.max(textSize,minText)));
