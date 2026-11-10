@@ -13,6 +13,7 @@ public final class PlaybackQueue {
   cursor=0;position=0;failures=0;for(int i=0;i<tracks.size();i++)order.add(i);
   if(shuffle&&!order.isEmpty()){Collections.shuffle(order,random);order.remove(Integer.valueOf(selected));order.add(0,selected);}else cursor=selected;
  }
+ public void setRandomized(List<Track> input,Random random){shuffle=true;if(repeat==ONE)repeat=ALL;set(input,input.isEmpty()?0:random.nextInt(input.size()),random);}
  public void shuffle(boolean on,Random random){
   if(shuffle==on)return;shuffle=on;Track keep=current();int index=keep==null?0:tracks.indexOf(keep);order.clear();for(int i=0;i<tracks.size();i++)order.add(i);
   if(on&&!order.isEmpty()){Collections.shuffle(order,random);order.remove(Integer.valueOf(index));order.add(0,index);cursor=0;}else cursor=index;

@@ -4,11 +4,12 @@ public final class SoundStore {
  public static final String[] NOISE={"white","pink","brown"},NATURE={"rain","forest"};
  private final SharedPreferences prefs;
  public SoundStore(Context c){prefs=c.getSharedPreferences("player",0);}
- public void initialize(){String chosen=id();SharedPreferences.Editor edit=prefs.edit();if(prefs.getString("sound_id","").isEmpty())edit.putString("sound_id",chosen);if(prefs.getInt("volume",-1)<0)edit.putInt("volume",volume());edit.apply();}
+ public void initialize(){String chosen=id();SharedPreferences.Editor edit=prefs.edit();if(prefs.getString("sound_id","").isEmpty())edit.putString("sound_id",chosen);if(prefs.getInt("volume",-1)<0)edit.putInt("volume",volume());if(!chosen.equals("local"))edit.putString(noise(chosen)?"last_noise":"last_nature",chosen);edit.apply();}
  public String id(){String saved=prefs.getString("sound_id","");if(valid(saved))return saved;return prefs.getString("uri","").isEmpty()?"brown":"local";}
  public static boolean valid(String id){return id.equals("white")||id.equals("pink")||id.equals("brown")||id.equals("rain")||id.equals("forest")||id.equals("local");}
  public static boolean noise(String id){return id.equals("white")||id.equals("pink")||id.equals("brown");}
- public void select(String id){if(!valid(id))throw new IllegalArgumentException("Unknown sound");prefs.edit().putString("sound_id",id).apply();}
+ public void select(String id){if(!valid(id))throw new IllegalArgumentException("Unknown sound");SharedPreferences.Editor edit=prefs.edit().putString("sound_id",id);if(!id.equals("local"))edit.putString(noise(id)?"last_noise":"last_nature",id);edit.apply();}
+ public String lastInCategory(boolean isNoise){String fallback=isNoise?"brown":"rain",saved=prefs.getString(isNoise?"last_noise":"last_nature",fallback);return valid(saved)&&!saved.equals("local")&&noise(saved)==isNoise?saved:fallback;}
  public String title(){return title(id());}
  public String title(String id){
   if(id.equals("local"))return prefs.getString("title","My Audio");

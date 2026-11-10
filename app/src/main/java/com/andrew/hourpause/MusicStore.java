@@ -11,5 +11,6 @@ public final class MusicStore {
  public void save(){String data=state().encode();prefs.edit().putString("state",data).apply();saved=data;}
  public void mirror(){Track t=state().queue.current();if(t!=null)player.edit().putString("uri",t.uri).putString("title",t.title).putInt("position",state().queue.position).apply();}
  public void select(List<Track> tracks,int index){state().queue.set(tracks,index,new Random());save();mirror();player.edit().putString("sound_id","local").apply();}
+ public void selectShuffled(List<Track> tracks){state().queue.setRandomized(tracks,new Random());save();mirror();player.edit().putString("sound_id","local").apply();}
  public void position(String uri,int position){PlaybackQueue q=state().queue;if(q.current()!=null&&q.current().uri.equals(uri)){q.position=Math.max(0,position);save();}}
 }
