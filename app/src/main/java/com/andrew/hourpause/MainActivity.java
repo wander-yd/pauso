@@ -20,16 +20,13 @@ import java.util.Date;
 import java.text.SimpleDateFormat;
 
 public class MainActivity extends Activity {
- private final int BG=Color.rgb(32,58,50),CARD=Color.rgb(52,75,64),INK=Color.rgb(244,239,228),MUTED=Color.rgb(168,175,164),ACCENT=Color.rgb(233,216,174);
+ private final int BG=0xff09120d,CARD=0xff223a30,INK=0xfff4efe4,MUTED=0xffa7ac98,ACCENT=0xffdfd3b3;
  private final Handler handler=new Handler(Looper.getMainLooper());
- private TextView state,count,detail,file,error,planPreview;
- private ImageView stateIcon;
+ private TextView file,error,planPreview;
  private ImageButton play,stop;
- private Button choose,customButton,shuffleButton,repeatButton,sleepButton;
  private ImageButton sleepCancel;private TextView sleepStatus;private SleepStore sleep;
  private ImageButton previousTrack,nextTrack;
  private MusicStore musicStore;private MusicDialog musicDialog;
- private Dial dial;
  private PlanStore plans;
  private SharedPreferences prefs;
  private SoundStore sounds;
@@ -38,58 +35,80 @@ public class MainActivity extends Activity {
  private AudioFocusRequest auditionFocus;
  private int auditionToken;
  private final Runnable endPreview=()->stopPreview();
- private final Button[] presetButtons=new Button[4];
- private int lastSelected=-99,lastPlayIcon=-1,lastStateIcon=-1;
  private final Runnable refresh=new Runnable(){public void run(){render();handler.postDelayed(this,250);}};
  private int dp(float v){return Math.round(v*getResources().getDisplayMetrics().density);}
+ private LinearLayout shell,playerPage,topBar,transportRow,sleepRow,musicRow,bottomNav;
+ private FrameLayout pageArea,musicContent;private View musicPage,settingsPage,soundsPage,browserPage;
+ private TurntableView scene;private TextView clockText;private Button rhythmControl;
+ private ImageButton sleepTrigger,shuffleControl,repeatControl;private final ImageButton[] navButtons=new ImageButton[3];
+ private final Button[] musicTabs=new Button[3];private final TextView[] categoryLabels=new TextView[2];
+ private int page=0,musicTab=0;private boolean immersive,resumed;
  @Override public void onCreate(Bundle b){
   super.onCreate(b);sleep=new SleepStore(this);if(!PlaybackService.running)sleep.endSession();prefs=getSharedPreferences("player",0);plans=new PlanStore(this);sounds=new SoundStore(this);sounds.initialize();musicStore=new MusicStore(this);updates=new UpdateClient(this);
-  ScrollView scroll=new ScrollView(this);scroll.setFillViewport(true);scroll.setBackgroundColor(BG);scroll.setClipToPadding(false);
-  LinearLayout root=new LinearLayout(this);root.setOrientation(1);root.setPadding(dp(22),dp(12),dp(22),dp(24));scroll.addView(root);
-  scroll.setOnApplyWindowInsetsListener((v,insets)->{
-   if(Build.VERSION.SDK_INT>=30){android.graphics.Insets bars=insets.getInsets(WindowInsets.Type.systemBars());v.setPadding(bars.left,bars.top,bars.right,bars.bottom);}else v.setPadding(insets.getSystemWindowInsetLeft(),insets.getSystemWindowInsetTop(),insets.getSystemWindowInsetRight(),insets.getSystemWindowInsetBottom());return insets;
-  });
-  LinearLayout header=new LinearLayout(this);header.setGravity(Gravity.CENTER);header.setOrientation(0);
-  ImageView brand=new ImageView(this);brand.setImageResource(R.mipmap.ic_launcher_round);brand.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);header.addView(brand,new LinearLayout.LayoutParams(dp(32),dp(32)));
-  TextView title=text("Pauso",26,INK);title.setTypeface(android.graphics.Typeface.create("sans-serif-medium",0));LinearLayout.LayoutParams titleLP=new LinearLayout.LayoutParams(-2,-2);titleLP.leftMargin=dp(10);header.addView(title,titleLP);add(root,header,0);
-  int faceSize=Math.min(232,Math.max(184,(int)(getResources().getDisplayMetrics().widthPixels/getResources().getDisplayMetrics().density)-90));
-  FrameLayout face=new FrameLayout(this);LinearLayout.LayoutParams faceLP=new LinearLayout.LayoutParams(dp(faceSize),dp(faceSize));faceLP.gravity=Gravity.CENTER;faceLP.topMargin=dp(14);root.addView(face,faceLP);
-  dial=new Dial(this);face.addView(dial,new FrameLayout.LayoutParams(-1,-1));
-  LinearLayout center=new LinearLayout(this);center.setOrientation(1);center.setGravity(Gravity.CENTER);center.setPadding(dp(18),0,dp(18),0);face.addView(center,new FrameLayout.LayoutParams(-1,-1));
-  count=text("00:00",48,ACCENT);count.setTypeface(android.graphics.Typeface.create("sans-serif-medium",0));count.setGravity(Gravity.CENTER);count.setIncludeFontPadding(false);center.addView(count);
-  LinearLayout stateRow=new LinearLayout(this);stateRow.setGravity(Gravity.CENTER);stateRow.setOrientation(0);LinearLayout.LayoutParams stateLP=new LinearLayout.LayoutParams(-1,dp(30));stateLP.topMargin=dp(8);center.addView(stateRow,stateLP);
-  stateIcon=new ImageView(this);stateIcon.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);stateRow.addView(stateIcon,new LinearLayout.LayoutParams(dp(19),dp(19)));
-  state=text("Ready",16,INK);LinearLayout.LayoutParams stateTextLP=new LinearLayout.LayoutParams(-2,-2);stateTextLP.leftMargin=dp(6);stateRow.addView(state,stateTextLP);
-  detail=text("Choose your music",12,MUTED);detail.setGravity(Gravity.CENTER);detail.setMaxLines(2);detail.setPadding(0,dp(5),0,0);center.addView(detail);
-  LinearLayout controls=new LinearLayout(this);controls.setOrientation(0);controls.setGravity(Gravity.CENTER);add(root,controls,8);
-  previousTrack=iconButton(R.drawable.ic_control_previous,CARD,INK,48,12,"Previous track");controls.addView(previousTrack,new LinearLayout.LayoutParams(dp(48),dp(48)));previousTrack.setOnClickListener(v->skipTrack(true));
-  play=iconButton(R.drawable.ic_control_play,ACCENT,BG,72,21,"Start playback");controls.addView(play,new LinearLayout.LayoutParams(dp(72),dp(72)));
-  nextTrack=iconButton(R.drawable.ic_control_next,CARD,INK,48,12,"Next track");controls.addView(nextTrack,new LinearLayout.LayoutParams(dp(48),dp(48)));nextTrack.setOnClickListener(v->skipTrack(false));
-  stop=iconButton(R.drawable.ic_control_stop,CARD,INK,48,13,"Stop session");LinearLayout.LayoutParams stopLP=new LinearLayout.LayoutParams(dp(48),dp(48));stopLP.leftMargin=dp(26);controls.addView(stop,stopLP);
-  play.setOnClickListener(v->playOrPause());stop.setOnClickListener(v->{if(PlaybackService.running)startService(new Intent(this,PlaybackService.class).setAction(PlaybackService.STOP));});
-  buildRhythm(root);
-  LinearLayout sleepRow=new LinearLayout(this);sleepRow.setGravity(Gravity.CENTER_VERTICAL);add(root,sleepRow,10);
-  ImageView moon=new ImageView(this);moon.setImageResource(R.drawable.ic_sleep);moon.setContentDescription("Sleep timer");sleepRow.addView(moon,new LinearLayout.LayoutParams(dp(22),dp(22)));
-  sleepStatus=text("Sleep off",13,MUTED);LinearLayout.LayoutParams sleepTextLP=new LinearLayout.LayoutParams(0,-2,1);sleepTextLP.leftMargin=dp(8);sleepRow.addView(sleepStatus,sleepTextLP);
-  sleepButton=button("Sleep timer",false);sleepButton.setTextSize(12);sleepRow.addView(sleepButton,new LinearLayout.LayoutParams(dp(88),dp(48)));sleepButton.setOnClickListener(v->sleepDialog());
-  sleepCancel=iconButton(R.drawable.ic_close,CARD,INK,48,14,"Cancel Sleep timer");LinearLayout.LayoutParams cancelLP=new LinearLayout.LayoutParams(dp(48),dp(48));cancelLP.leftMargin=dp(6);sleepRow.addView(sleepCancel,cancelLP);sleepCancel.setOnClickListener(v->{sleep.cancel();sleepChanged();});
-  View divider=new View(this);divider.setBackgroundColor(CARD);LinearLayout.LayoutParams dividerLP=new LinearLayout.LayoutParams(-1,dp(1));dividerLP.topMargin=dp(18);dividerLP.bottomMargin=dp(12);root.addView(divider,dividerLP);
-  LinearLayout music=new LinearLayout(this);music.setOrientation(0);music.setGravity(Gravity.CENTER_VERTICAL);root.addView(music);
-  ImageView musicIcon=new ImageView(this);musicIcon.setImageResource(R.drawable.ic_music);musicIcon.setImageTintList(ColorStateList.valueOf(INK));musicIcon.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);music.addView(musicIcon,new LinearLayout.LayoutParams(dp(22),dp(22)));
-  file=text(sounds.title(),14,INK);file.setSingleLine();file.setEllipsize(TextUtils.TruncateAt.END);LinearLayout.LayoutParams fileLP=new LinearLayout.LayoutParams(0,-2,1);fileLP.leftMargin=dp(10);music.addView(file,fileLP);
-  choose=button("Sounds",false);choose.setTextSize(13);choose.setMinHeight(dp(48));LinearLayout.LayoutParams chooseLP=new LinearLayout.LayoutParams(dp(76),dp(48));chooseLP.leftMargin=dp(8);music.addView(choose,chooseLP);choose.setContentDescription("Choose Sound");choose.setOnClickListener(v->soundDialog());
-  LinearLayout modeRow=new LinearLayout(this);modeRow.setOrientation(0);add(root,modeRow,10);
-  shuffleButton=button("Shuffle off",false);repeatButton=button("Repeat all",false);shuffleButton.setTextSize(13);repeatButton.setTextSize(13);LinearLayout.LayoutParams modeLP=new LinearLayout.LayoutParams(0,dp(48),1);modeRow.addView(shuffleButton,modeLP);LinearLayout.LayoutParams repeatLP=new LinearLayout.LayoutParams(0,dp(48),1);repeatLP.leftMargin=dp(8);modeRow.addView(repeatButton,repeatLP);
-  shuffleButton.setOnClickListener(v->{PlaybackQueue q=musicStore.state().queue;q.shuffle(!q.shuffle,new java.util.Random());musicStore.save();modeChanged();});
-  repeatButton.setOnClickListener(v->{PlaybackQueue q=musicStore.state().queue;q.repeat=(q.repeat+1)%3;musicStore.save();modeChanged();});
-  LinearLayout volumeRow=new LinearLayout(this);volumeRow.setGravity(Gravity.CENTER_VERTICAL);volumeRow.setOrientation(0);add(root,volumeRow,4);
-  TextView volumeLabel=text("Volume",12,MUTED);volumeRow.addView(volumeLabel,new LinearLayout.LayoutParams(dp(58),-2));
-  SeekBar volume=new SeekBar(this);volume.setMax(100);volume.setProgress(sounds.volume());volume.setContentDescription("Player volume");volume.setProgressTintList(ColorStateList.valueOf(ACCENT));volume.setThumbTintList(ColorStateList.valueOf(ACCENT));volumeRow.addView(volume,new LinearLayout.LayoutParams(0,dp(48),1));
-  volume.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener(){public void onProgressChanged(SeekBar s,int value,boolean user){if(user){prefs.edit().putInt("volume",value).apply();if(PlaybackService.running)startService(new Intent(MainActivity.this,PlaybackService.class).setAction(PlaybackService.VOLUME));}}public void onStartTrackingTouch(SeekBar s){}public void onStopTrackingTouch(SeekBar s){}});
-  error=text("",13,Color.rgb(255,192,167));error.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);add(root,error,4);
-  Button update=button("v"+updates.currentVersion()+" · Check for updates",false);update.setTextSize(12);update.setTextColor(MUTED);update.setBackground(shape(BG,12));add(root,update,10);update.setOnClickListener(v->updates.check(true));
-  setContentView(scroll);scroll.requestApplyInsets();render();
+  getWindow().setStatusBarColor(BG);getWindow().setNavigationBarColor(BG);
+  shell=new LinearLayout(this);shell.setOrientation(1);shell.setBackgroundColor(BG);
+  shell.setOnApplyWindowInsetsListener((v,insets)->{if(Build.VERSION.SDK_INT>=30){android.graphics.Insets bars=insets.getInsets(WindowInsets.Type.systemBars());v.setPadding(bars.left,bars.top,bars.right,bars.bottom);}else v.setPadding(insets.getSystemWindowInsetLeft(),insets.getSystemWindowInsetTop(),insets.getSystemWindowInsetRight(),insets.getSystemWindowInsetBottom());return insets;});
+  pageArea=new FrameLayout(this);shell.addView(pageArea,new LinearLayout.LayoutParams(-1,0,1));
+  boolean small=getResources().getDisplayMetrics().heightPixels/getResources().getDisplayMetrics().density<640;
+  playerPage=new LinearLayout(this);playerPage.setOrientation(1);playerPage.setPadding(dp(16),dp(small?6:12),dp(16),dp(4));playerPage.setOnClickListener(v->setQuietMode(!immersive));pageArea.addView(playerPage,new FrameLayout.LayoutParams(-1,-1));
+  topBar=new LinearLayout(this);topBar.setGravity(Gravity.CENTER_VERTICAL);playerPage.addView(topBar,new LinearLayout.LayoutParams(-1,dp(44)));
+  clockText=text("",13,MUTED);topBar.addView(clockText,new LinearLayout.LayoutParams(0,-2,1));
+  ImageButton volume=iconButton(R.drawable.ui_volume,BG,MUTED,44,11,"Player volume");topBar.addView(volume,new LinearLayout.LayoutParams(dp(44),dp(44)));volume.setOnClickListener(v->volumeDialog());
+  rhythmControl=button("14 | 1",false);rhythmControl.setTextColor(ACCENT);rhythmControl.setTextSize(18);topBar.addView(rhythmControl,new LinearLayout.LayoutParams(dp(104),dp(44)));rhythmControl.setOnClickListener(v->rhythmDialog());
+  scene=new TurntableView(this);playerPage.addView(scene,new LinearLayout.LayoutParams(-1,0,1));scene.setOnClickListener(v->{if(immersive)setQuietMode(false);else setPage(1);});
+  planPreview=text("",12,MUTED);planPreview.setGravity(Gravity.CENTER);playerPage.addView(planPreview,new LinearLayout.LayoutParams(-1,dp(22)));
+  transportRow=new LinearLayout(this);transportRow.setGravity(Gravity.CENTER);playerPage.addView(transportRow,new LinearLayout.LayoutParams(-1,dp(small?52:66)));
+  previousTrack=iconButton(R.drawable.ic_control_previous,BG,INK,44,12,"Previous track");transportRow.addView(previousTrack,new LinearLayout.LayoutParams(dp(44),dp(44)));previousTrack.setOnClickListener(v->skipTrack(true));
+  play=iconButton(R.drawable.ic_control_play,ACCENT,BG,small?52:62,small?15:18,"Start playback");transportRow.addView(play,new LinearLayout.LayoutParams(dp(small?52:62),dp(small?52:62)));play.setOnClickListener(v->playOrPause());
+  nextTrack=iconButton(R.drawable.ic_control_next,BG,INK,44,12,"Next track");transportRow.addView(nextTrack,new LinearLayout.LayoutParams(dp(44),dp(44)));nextTrack.setOnClickListener(v->skipTrack(false));
+  stop=iconButton(R.drawable.ic_control_stop,CARD,INK,44,13,"Stop session");LinearLayout.LayoutParams stopLP=new LinearLayout.LayoutParams(dp(44),dp(44));stopLP.leftMargin=dp(14);transportRow.addView(stop,stopLP);stop.setOnClickListener(v->{if(PlaybackService.running)startService(new Intent(this,PlaybackService.class).setAction(PlaybackService.STOP));});
+  sleepRow=new LinearLayout(this);sleepRow.setGravity(Gravity.CENTER);playerPage.addView(sleepRow,new LinearLayout.LayoutParams(-1,dp(44)));
+  sleepTrigger=iconButton(R.drawable.ic_sleep,BG,MUTED,44,13,"Sleep timer");sleepRow.addView(sleepTrigger,new LinearLayout.LayoutParams(dp(44),dp(44)));sleepTrigger.setOnClickListener(v->sleepDialog());
+  sleepStatus=text("",12,MUTED);sleepStatus.setSingleLine();sleepStatus.setEllipsize(TextUtils.TruncateAt.END);sleepRow.addView(sleepStatus,new LinearLayout.LayoutParams(-2,-2));sleepStatus.setOnClickListener(v->sleepDialog());
+  sleepCancel=iconButton(R.drawable.ic_close,BG,MUTED,44,13,"Cancel Sleep timer");sleepRow.addView(sleepCancel,new LinearLayout.LayoutParams(dp(44),dp(44)));sleepCancel.setOnClickListener(v->{sleep.cancel();sleepChanged();});
+  musicRow=new LinearLayout(this);musicRow.setGravity(Gravity.CENTER_VERTICAL);playerPage.addView(musicRow,new LinearLayout.LayoutParams(-1,dp(52)));musicRow.setOnClickListener(v->setPage(1));
+  ImageView musicIcon=new ImageView(this);musicIcon.setImageResource(R.drawable.ic_music);musicIcon.setImageTintList(ColorStateList.valueOf(ACCENT));musicIcon.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);musicRow.addView(musicIcon,new LinearLayout.LayoutParams(dp(22),dp(22)));
+  file=text("",13,INK);file.setSingleLine();file.setEllipsize(TextUtils.TruncateAt.END);LinearLayout.LayoutParams fileLP=new LinearLayout.LayoutParams(0,-2,1);fileLP.leftMargin=dp(10);musicRow.addView(file,fileLP);
+  shuffleControl=iconButton(R.drawable.ui_shuffle,BG,MUTED,40,9,"Shuffle");musicRow.addView(shuffleControl,new LinearLayout.LayoutParams(dp(40),dp(44)));shuffleControl.setOnClickListener(v->{PlaybackQueue q=musicStore.state().queue;q.shuffle(!q.shuffle,new java.util.Random());musicStore.save();modeChanged();});
+  repeatControl=iconButton(R.drawable.ui_repeat,BG,ACCENT,40,9,"Repeat all");musicRow.addView(repeatControl,new LinearLayout.LayoutParams(dp(40),dp(44)));repeatControl.setOnClickListener(v->{PlaybackQueue q=musicStore.state().queue;q.repeat=(q.repeat+1)%3;musicStore.save();modeChanged();});
+  error=text("",12,0xffffc0a7);error.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);playerPage.addView(error,new LinearLayout.LayoutParams(-1,-2));
+  buildMusicPage();buildSettingsPage();
+  bottomNav=new LinearLayout(this);bottomNav.setPadding(dp(20),dp(3),dp(20),dp(3));shell.addView(bottomNav,new LinearLayout.LayoutParams(-1,dp(54)));
+  int[] navIcons={R.drawable.ui_disc,R.drawable.ic_music,R.drawable.ui_settings};String[] navLabels={"Player","Music","Settings"};
+  for(int i=0;i<3;i++){final int n=i;ImageButton button=iconButton(navIcons[i],BG,MUTED,44,12,navLabels[i]);navButtons[i]=button;bottomNav.addView(button,new LinearLayout.LayoutParams(0,-1,1));button.setOnClickListener(v->setPage(n));}
+  setContentView(shell);shell.requestApplyInsets();int restored=b==null?0:b.getInt("page",0);setPage(restored);if(b!=null&&b.getBoolean("immersive",false)&&page==0)setQuietMode(true);render();
  }
+ private void buildMusicPage(){
+  LinearLayout root=new LinearLayout(this);root.setOrientation(1);root.setPadding(dp(16),dp(14),dp(16),0);musicPage=root;pageArea.addView(root,new FrameLayout.LayoutParams(-1,-1));
+  LinearLayout tabs=new LinearLayout(this);String[] labels={"Sounds","Songs","Playlists"};for(int i=0;i<3;i++){final int n=i;Button tab=button(labels[i],false);tab.setTextSize(13);musicTabs[i]=tab;LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(0,dp(44),1);if(i>0)lp.leftMargin=dp(4);tabs.addView(tab,lp);tab.setOnClickListener(v->setMusicTab(n));}root.addView(tabs);
+  musicContent=new FrameLayout(this);LinearLayout.LayoutParams cp=new LinearLayout.LayoutParams(-1,0,1);cp.topMargin=dp(12);root.addView(musicContent,cp);
+  ScrollView scroll=new ScrollView(this);LinearLayout categories=new LinearLayout(this);categories.setOrientation(1);scroll.addView(categories);soundsPage=scroll;musicContent.addView(scroll,new FrameLayout.LayoutParams(-1,-1));
+  LinearLayout cards=new LinearLayout(this);categories.addView(cards);String[] names={"Noise","Nature"};int[] symbols={R.drawable.ui_noise,R.drawable.ui_nature};
+  for(int i=0;i<2;i++){final int index=i;LinearLayout card=new LinearLayout(this);card.setOrientation(1);card.setBackground(shape(CARD,18));LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(0,-2,1);if(i>0)lp.leftMargin=dp(10);cards.addView(card,lp);
+   LinearLayout main=new LinearLayout(this);main.setOrientation(1);main.setPadding(dp(16),dp(18),dp(12),dp(12));main.setGravity(Gravity.BOTTOM);main.setClickable(true);main.setFocusable(true);main.setContentDescription("Use last "+names[i]+" sound");card.addView(main,new LinearLayout.LayoutParams(-1,dp(142)));main.setOnClickListener(v->{stopPreview();sounds.select(categoryLast(index));soundChanged();});
+   ImageView symbol=new ImageView(this);symbol.setImageResource(symbols[i]);symbol.setImageTintList(ColorStateList.valueOf(ACCENT));symbol.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);main.addView(symbol,new LinearLayout.LayoutParams(dp(28),dp(28)));TextView name=text(names[i],19,INK);add(main,name,14);categoryLabels[i]=text(categoryLast(i),11,MUTED);categoryLabels[i].setMaxLines(2);add(main,categoryLabels[i],4);
+   Button change=button("Change ›",false);change.setTextColor(ACCENT);change.setTextSize(12);change.setContentDescription("Change "+names[i]+" sound");card.addView(change,new LinearLayout.LayoutParams(-1,dp(44)));change.setOnClickListener(v->categoryDialog(index));
+  }
+  musicDialog=new MusicDialog(this,new MusicDialog.Host(){public void permission(){requestPermissions(new String[]{MediaLibrary.permission()},18);}public void files(){importFiles();}public void selected(){soundChanged();}public void play(){if(!PlaybackService.running||"Paused".equals(PlaybackService.status))playOrPause();setPage(0);}},true);
+  browserPage=musicDialog.embeddedView();musicContent.addView(browserPage,new FrameLayout.LayoutParams(-1,-1));browserPage.setVisibility(View.GONE);
+ }
+ private String categoryLast(int category){return sounds.lastInCategory(category==0);}
+ private void setMusicTab(int tab){musicTab=tab;boolean browser=tab>0;soundsPage.setVisibility(browser?View.GONE:View.VISIBLE);browserPage.setVisibility(browser?View.VISIBLE:View.GONE);if(browser)musicDialog.activate(tab==2);render();}
+ private void buildSettingsPage(){ScrollView scroll=new ScrollView(this);LinearLayout root=new LinearLayout(this);root.setOrientation(1);root.setPadding(dp(20),dp(16),dp(20),dp(16));scroll.addView(root);settingsPage=scroll;pageArea.addView(scroll,new FrameLayout.LayoutParams(-1,-1));
+  Button immersiveEntry=button("Immersive view",false);add(root,immersiveEntry,4);immersiveEntry.setOnClickListener(v->{setPage(0);setQuietMode(true);});
+  Switch motion=new Switch(this);motion.setText("Reduce motion");motion.setTextColor(INK);motion.setPadding(dp(6),dp(8),dp(6),dp(8));motion.setChecked(prefs.getBoolean("reduce_motion",false));add(root,motion,12);motion.setOnCheckedChangeListener((v,checked)->{prefs.edit().putBoolean("reduce_motion",checked).apply();render();});
+  Button update=button("v"+updates.currentVersion()+" · Check for updates",false);update.setTextSize(13);add(root,update,20);update.setOnClickListener(v->updates.check(true));
+  Button credits=button("Sound credits",false);credits.setTextSize(13);add(root,credits,8);credits.setOnClickListener(v->soundCredits());
+ }
+ private void setPage(int selected){if(selected<0||selected>2)selected=0;if(immersive)setQuietMode(false);page=selected;playerPage.setVisibility(page==0?View.VISIBLE:View.GONE);musicPage.setVisibility(page==1?View.VISIBLE:View.GONE);settingsPage.setVisibility(page==2?View.VISIBLE:View.GONE);if(page==1)setMusicTab(musicTab);for(int i=0;i<3;i++)if(navButtons[i]!=null){navButtons[i].setImageTintList(ColorStateList.valueOf(page==i?ACCENT:MUTED));navButtons[i].setSelected(page==i);}render();}
+ private void setQuietMode(boolean value){immersive=value;for(View v:new View[]{topBar,planPreview,transportRow,sleepRow,musicRow,bottomNav})v.setVisibility(value?View.GONE:View.VISIBLE);error.setVisibility(!value&&!PlaybackService.error.isEmpty()?View.VISIBLE:View.GONE);if(value)scene.requestFocus();render();}
+ @Override public void onBackPressed(){if(immersive){setQuietMode(false);return;}if(page==1&&musicTab>0&&musicDialog.navigateBack())return;if(page!=0){setPage(0);return;}super.onBackPressed();}
+ @Override protected void onSaveInstanceState(Bundle b){b.putInt("page",page);b.putBoolean("immersive",immersive);super.onSaveInstanceState(b);}
+ private void volumeDialog(){LinearLayout box=new LinearLayout(this);box.setPadding(dp(20),dp(8),dp(20),dp(12));SeekBar bar=new SeekBar(this);bar.setMax(100);bar.setProgress(sounds.volume());bar.setContentDescription("Player volume");bar.setProgressTintList(ColorStateList.valueOf(ACCENT));bar.setThumbTintList(ColorStateList.valueOf(ACCENT));box.addView(bar,new LinearLayout.LayoutParams(-1,dp(48)));bar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener(){public void onProgressChanged(SeekBar v,int n,boolean user){if(user){prefs.edit().putInt("volume",n).apply();if(PlaybackService.running)startService(new Intent(MainActivity.this,PlaybackService.class).setAction(PlaybackService.VOLUME));}}public void onStartTrackingTouch(SeekBar b){}public void onStopTrackingTouch(SeekBar b){}});new AlertDialog.Builder(this).setTitle("Player volume").setView(box).setNegativeButton("Close",null).show();}
+ private void rhythmDialog(){LinearLayout box=new LinearLayout(this);box.setPadding(dp(20),dp(8),dp(20),dp(12));box.setOrientation(1);box.addView(text("Play / Break · minutes",12,MUTED));AlertDialog d=new AlertDialog.Builder(this).setTitle("Rhythm").setView(box).setNegativeButton("Close",null).create();for(int row=0;row<2;row++){LinearLayout line=new LinearLayout(this);add(box,line,8);for(int col=0;col<2;col++){final int index=row*2+col;int[] p=PlanStore.PRESETS[index];Button tile=button(p[0]+"\n"+p[1],false);tile.setTextSize(22);tile.setContentDescription(p[0]+" minutes Play, "+p[1]+" minutes Break");tile.setTextColor(plans.selected()==index?ACCENT:INK);LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(0,dp(78),1);if(col>0)lp.leftMargin=dp(8);line.addView(tile,lp);tile.setOnClickListener(v->{plans.preset(index);d.dismiss();planChanged();});}}Button custom=button("Custom rhythm ›",false);add(box,custom,10);custom.setOnClickListener(v->{d.dismiss();customDialog();});d.show();}
+ private void categoryDialog(int category){stopPreview();LinearLayout box=new LinearLayout(this);box.setOrientation(1);box.setPadding(dp(18),dp(4),dp(18),dp(8));TextView message=text("",12,ACCENT);add(box,message,0);String[] ids=category==0?new String[]{"white","pink","brown"}:new String[]{"rain","forest"};AlertDialog dialog=new AlertDialog.Builder(this).setTitle(category==0?"Noise":"Nature").setView(box).setNegativeButton("Close",null).create();for(String id:ids){LinearLayout row=new LinearLayout(this);row.setGravity(Gravity.CENTER_VERTICAL);TextView title=text(sounds.title(id),15,INK);row.addView(title,new LinearLayout.LayoutParams(0,-2,1));ImageButton preview=iconButton(R.drawable.ic_control_play,CARD,INK,44,13,"Preview "+sounds.title(id));row.addView(preview,new LinearLayout.LayoutParams(dp(44),dp(44)));preview.setOnClickListener(v->previewSound(id,message));Button use=button(sounds.id().equals(id)?"Selected":"Use",false);use.setTextSize(12);LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(dp(80),dp(44));lp.leftMargin=dp(6);row.addView(use,lp);use.setOnClickListener(v->{stopPreview();sounds.select(id);soundChanged();dialog.dismiss();});add(box,row,8);}dialog.setOnDismissListener(d->stopPreview());dialog.show();}
+ private void soundCredits(){new AlertDialog.Builder(this).setTitle("Sound credits").setMessage("Forest Rain: stevenparry · CC0\nhttps://freesound.org/s/760955/\n\nForest Birds: Magnesus · CC0\nhttps://freesound.org/s/723913/\n\nNoise is generated locally.").setPositiveButton("Close",null).show();}
+ private void importFiles(){Intent i=new Intent(Intent.ACTION_OPEN_DOCUMENT).setType("audio/*").addCategory(Intent.CATEGORY_OPENABLE).putExtra(Intent.EXTRA_ALLOW_MULTIPLE,true).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION|Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);try{startActivityForResult(i,17);}catch(ActivityNotFoundException e){Toast.makeText(this,"No file picker found.",Toast.LENGTH_LONG).show();}}
  private void playOrPause(){
   stopPreview();
   if(PlaybackService.running){String action="Paused".equals(PlaybackService.status)?PlaybackService.RESUME:PlaybackService.PAUSE;startService(new Intent(this,PlaybackService.class).setAction(action));}
@@ -122,57 +141,20 @@ public class MainActivity extends Activity {
    },()->{if(token==auditionToken){stopPreview();message.setText("Could not preview this sound.");}});
   }catch(Exception e){stopPreview();message.setText("Could not preview this sound.");}
  }
- private void soundDialog(){
-  LinearLayout box=new LinearLayout(this);box.setOrientation(1);box.setPadding(dp(18),dp(4),dp(18),dp(8));
-  TextView hint=text("Preview for 5 seconds, then tap Use.\nIf music is playing, pause it before previewing.",12,MUTED);add(box,hint,4);
-  TextView previewMessage=text("All built-in sounds work offline.",12,ACCENT);add(box,previewMessage,8);
-  ScrollView scroll=new ScrollView(this);scroll.addView(box);
-  AlertDialog dialog=new AlertDialog.Builder(this).setTitle("Choose Sound").setView(scroll).setNegativeButton("Close",null).setNeutralButton("Credits",null).create();
-  String[] ids={"white","pink","brown","rain","forest"};
-  String[] notes={"Bright and steady · Offline","Soft and balanced · Offline","Deep and warm · Offline","Rain in the woods · Offline","Birdsong and forest air · Offline"};
-  for(int i=0;i<ids.length;i++){
-   if(i==0||i==3)add(box,text(i==0?"Noise":"Nature",18,INK),16);
-   final String id=ids[i];LinearLayout row=new LinearLayout(this);row.setGravity(Gravity.CENTER_VERTICAL);row.setOrientation(0);add(box,row,4);
-   LinearLayout words=new LinearLayout(this);words.setOrientation(1);row.addView(words,new LinearLayout.LayoutParams(0,-2,1));
-   words.addView(text(sounds.title(id)+(id.equals(sounds.id())?" · Selected":""),15,INK));words.addView(text(notes[i],11,MUTED));
-   ImageButton preview=iconButton(R.drawable.ic_control_play,CARD,INK,48,15,"Preview "+sounds.title(id));row.addView(preview,new LinearLayout.LayoutParams(dp(48),dp(48)));preview.setOnClickListener(v->previewSound(id,previewMessage));
-   Button use=button("Use",false);use.setTextSize(13);LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(dp(56),dp(48));lp.leftMargin=dp(6);row.addView(use,lp);use.setContentDescription("Use "+sounds.title(id));use.setOnClickListener(v->{stopPreview();sounds.select(id);soundChanged();dialog.dismiss();});
-  }
-  add(box,text("My Audio",18,INK),16);
-  Button library=button("Phone music & playlists",false);add(box,library,6);library.setOnClickListener(v->{stopPreview();dialog.dismiss();openMusic();});
-  if(!sounds.uri().isEmpty()){
-   TextView local=text(sounds.title("local"),13,MUTED);local.setMaxLines(1);local.setEllipsize(TextUtils.TruncateAt.END);add(box,local,6);
-   Button localUse=button(musicStore.state().queue.tracks.size()>1?"Use current music queue":"Use my selected file",false);add(box,localUse,6);localUse.setOnClickListener(v->{stopPreview();sounds.select("local");soundChanged();dialog.dismiss();});
-  }
-  Button chooseLocal=button("Choose a local file…",false);add(box,chooseLocal,6);chooseLocal.setOnClickListener(v->{stopPreview();dialog.dismiss();chooseFile();});
-  dialog.setOnDismissListener(d->stopPreview());dialog.show();
-  dialog.getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener(v->{
-   new AlertDialog.Builder(this).setTitle("Sound credits").setMessage("Forest Rain: Rain in the forest — stevenparry\nhttps://freesound.org/s/760955/\n\nForest Birds: Forest birds - ambient seamless loop — Magnesus\nhttps://freesound.org/s/723913/\n\nBoth recordings: CC0 1.0. Pauso uses edited, level-adjusted loops. Noise is generated locally.\nhttps://creativecommons.org/publicdomain/zero/1.0/").setPositiveButton("OK",null).show();
-  });
-  if(dialog.getWindow()!=null)dialog.getWindow().setBackgroundDrawable(shape(BG,24));
- }
  private void modeChanged(){if(PlaybackService.running)startService(new Intent(this,PlaybackService.class).setAction(PlaybackService.MODE));render();}
  private void skipTrack(boolean previous){
   if(!sounds.id().equals("local"))return;
   if(PlaybackService.running)startService(new Intent(this,PlaybackService.class).setAction(previous?PlaybackService.PREVIOUS:PlaybackService.NEXT));
   else{PlaybackQueue q=musicStore.state().queue;boolean changed=previous?q.previous():q.advance(false,new java.util.Random());if(changed){musicStore.save();musicStore.mirror();}render();}
  }
- private void openMusic(){
-  stopPreview();if(musicDialog!=null&&musicDialog.isShowing())return;
-  musicDialog=new MusicDialog(this,new MusicDialog.Host(){public void permission(){requestPermissions(new String[]{MediaLibrary.permission()},18);}public void files(){Intent i=new Intent(Intent.ACTION_OPEN_DOCUMENT).setType("audio/*").addCategory(Intent.CATEGORY_OPENABLE).putExtra(Intent.EXTRA_ALLOW_MULTIPLE,true).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION|Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);try{startActivityForResult(i,17);}catch(ActivityNotFoundException e){Toast.makeText(MainActivity.this,"No file picker found.",Toast.LENGTH_LONG).show();}}public void selected(){soundChanged();}});musicDialog.show();
- }
- @Override public void onRequestPermissionsResult(int code,String[] permissions,int[] results){super.onRequestPermissionsResult(code,permissions,results);if(code==18&&musicDialog!=null&&musicDialog.isShowing())musicDialog.scan();}
- @Override protected void onDestroy(){if(musicDialog!=null&&musicDialog.isShowing())musicDialog.dismiss();stopPreview();super.onDestroy();}
- private void chooseFile(){
-  Intent i=new Intent(Intent.ACTION_OPEN_DOCUMENT).setType("audio/*").addCategory(Intent.CATEGORY_OPENABLE).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION|Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
-  try{startActivityForResult(i,7);}catch(ActivityNotFoundException e){PlaybackService.error="No file picker found on this device.";render();}
- }
+ private void openMusic(){stopPreview();setPage(1);setMusicTab(1);}
+ @Override public void onRequestPermissionsResult(int code,String[] permissions,int[] results){super.onRequestPermissionsResult(code,permissions,results);if(code==18&&musicDialog!=null)musicDialog.scan();}
+ @Override protected void onDestroy(){if(musicDialog!=null)musicDialog.dismiss();stopPreview();super.onDestroy();}
  private void sleepChanged(){if(PlaybackService.running)startService(new Intent(this,PlaybackService.class).setAction(PlaybackService.SLEEP));render();}
  private void sleepDialog(){
   stopPreview();
-  if(!PlaybackService.running){new AlertDialog.Builder(this).setTitle("Sleep timer").setMessage("Start playback first, then choose when this session should end. Sleep will not start music automatically.").setPositiveButton("OK",null).show();return;}
+  if(!PlaybackService.running){new AlertDialog.Builder(this).setTitle("Sleep timer").setMessage("Start playback to set a sleep timer.").setPositiveButton("OK",null).show();return;}
   LinearLayout box=new LinearLayout(this);box.setOrientation(1);box.setPadding(dp(20),dp(8),dp(20),dp(8));
-  add(box,text("Stop playback completely. It will not resume after the next break. Pausing music does not pause Sleep.",13,MUTED),0);
   ScrollView scroll=new ScrollView(this);scroll.addView(box);
   AlertDialog dialog=new AlertDialog.Builder(this).setTitle("Sleep timer").setView(scroll).setNegativeButton("Close",null).create();
   int[] minutes={15,30,60,90};for(int row=0;row<2;row++){LinearLayout line=new LinearLayout(this);add(box,line,8);for(int col=0;col<2;col++){int n=minutes[row*2+col];Button b=button(n+" minutes",false);b.setTextSize(14);LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(0,dp(48),1);if(col>0)lp.leftMargin=dp(8);line.addView(b,lp);b.setOnClickListener(v->{if(PlaybackService.running){sleep.duration(n,SystemClock.elapsedRealtime());sleepChanged();}dialog.dismiss();});}}
@@ -189,31 +171,12 @@ public class MainActivity extends Activity {
   LinearLayout box=new LinearLayout(this);box.setOrientation(1);box.setPadding(dp(24),dp(12),dp(24),dp(8));box.addView(text("Stop after 1–720 minutes",14,MUTED));box.addView(input);
   AlertDialog d=new AlertDialog.Builder(this).setTitle("Sleep duration").setView(box).setNegativeButton("Cancel",null).setPositiveButton("Enable",null).create();d.setOnShowListener(x->d.getButton(-1).setOnClickListener(v->{Integer minutes=validDuration(input);if(minutes==null)return;if(PlaybackService.running){sleep.duration(minutes,SystemClock.elapsedRealtime());sleepChanged();}d.dismiss();}));d.show();if(d.getWindow()!=null)d.getWindow().setBackgroundDrawable(shape(BG,24));
  }
- private void buildRhythm(LinearLayout root){
-  TextView heading=text("Rhythms",20,INK);heading.setTypeface(android.graphics.Typeface.create("sans-serif-medium",0));add(root,heading,22);
-  for(int row=0;row<2;row++){
-   LinearLayout line=new LinearLayout(this);line.setOrientation(0);add(root,line,8);
-   for(int col=0;col<2;col++){
-    final int index=row*2+col;int[] preset=PlanStore.PRESETS[index];
-    String label=preset[0]+" min Play\n"+preset[1]+" min Break";
-    SpannableString styled=new SpannableString(label);int newline=label.indexOf('\n');styled.setSpan(new StyleSpan(android.graphics.Typeface.BOLD),0,newline,0);styled.setSpan(new RelativeSizeSpan(.82f),newline+1,label.length(),0);
-    Button b=button("",false);b.setText(styled);b.setTextSize(16);b.setLineSpacing(dp(3),1);b.setContentDescription(preset[0]+" minutes Play, "+preset[1]+" minutes Break");presetButtons[index]=b;
-    LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(0,dp(64),1);if(col==1)lp.leftMargin=dp(8);line.addView(b,lp);
-    b.setOnClickListener(v->{plans.preset(index);planChanged();});
-   }
-  }
-  customButton=button("Custom Rhythm",false);customButton.setTextSize(14);customButton.setBackground(shape(BG,12));customButton.setTextColor(ACCENT);LinearLayout.LayoutParams customLP=new LinearLayout.LayoutParams(-1,dp(44));customLP.topMargin=dp(3);root.addView(customButton,customLP);customButton.setOnClickListener(v->customDialog());
-  planPreview=text("",14,INK);planPreview.setGravity(Gravity.CENTER);add(root,planPreview,4);
- }
  private String time(long epoch){
   SimpleDateFormat clock=new SimpleDateFormat("HH:mm",Locale.getDefault()),date=new SimpleDateFormat("yyyyMMdd",Locale.US);
   return clock.format(new Date(epoch))+(date.format(new Date(epoch)).equals(date.format(new Date()))?"":" (next day)");
  }
- private String preview(Schedule.Rhythm rhythm,long now){
-  Schedule.Snapshot t=rhythm.at(now,TimeZone.getDefault());
-  return rhythm.work+" min Play · "+rhythm.rest+" min Break\n"+(t.quiet?"Break ends at ":"Next break at ")+time(now+t.remaining);
- }
- private void planChanged(){if(sleep.load().active())stopPreview();if(PlaybackService.running)startService(new Intent(this,PlaybackService.class).setAction(PlaybackService.PLAN));lastSelected=-99;render();}
+ private String preview(Schedule.Rhythm rhythm,long now){Schedule.Snapshot t=rhythm.at(now,TimeZone.getDefault());return (t.quiet?"Break ends at ":"Next break at ")+time(now+t.remaining);}
+ private void planChanged(){if(sleep.load().active())stopPreview();if(PlaybackService.running)startService(new Intent(this,PlaybackService.class).setAction(PlaybackService.PLAN));render();}
  private Integer validDuration(EditText input){
   try{int value=Integer.parseInt(input.getText().toString());if(value<1||value>720)throw new IllegalArgumentException();input.setError(null);return value;}
   catch(Exception e){if(input.getError()==null)input.setError("Use 1–720 minutes");return null;}
@@ -265,46 +228,23 @@ public class MainActivity extends Activity {
    musicStore.select(java.util.Collections.singletonList(track),0);musicStore.state().queue.position=position;musicStore.save();musicStore.mirror();soundChanged();
   }catch(Exception e){PlaybackService.error="Could not retain access. Choose a downloaded audio file from your phone.";}render();
  }
- @Override protected void onResume(){super.onResume();handler.removeCallbacks(refresh);refresh.run();if(updates!=null)updates.check(false);}
- @Override protected void onPause(){stopPreview();handler.removeCallbacks(refresh);super.onPause();}
+ @Override protected void onResume(){super.onResume();resumed=true;handler.removeCallbacks(refresh);refresh.run();if(updates!=null)updates.check(false);}
+ @Override protected void onPause(){resumed=false;stopPreview();handler.removeCallbacks(refresh);if(scene!=null)scene.setPresentation(false,true,immersive);super.onPause();}
  private String sleepCountdown(long millis){long seconds=(millis+999)/1000;return seconds>=3600?String.format(Locale.getDefault(),"%d:%02d:%02d",seconds/3600,seconds/60%60,seconds%60):String.format(Locale.getDefault(),"%02d:%02d",seconds/60,seconds%60);}
  private void render(){
-  if(state==null)return;
-  if(!PlaybackService.running)sleep.endSession();
-  SleepPlan sleepPlan=sleep.load();long sleepLeft=sleepPlan.remaining(SystemClock.elapsedRealtime(),System.currentTimeMillis());
-  sleepStatus.setText(sleepPlan.active()?(sleepPlan.mode==SleepPlan.DURATION?"Sleep · ":"This play period · ")+sleepCountdown(sleepLeft)+"\nStops at "+time(sleepPlan.endTime(SystemClock.elapsedRealtime(),System.currentTimeMillis())):sleep.message().isEmpty()?"Sleep off":sleep.message());
-  sleepStatus.setTextColor(sleepPlan.active()?ACCENT:MUTED);sleepButton.setText(sleepPlan.active()?"Change":"Sleep timer");sleepCancel.setVisibility(sleepPlan.active()?View.VISIBLE:View.GONE);
-  boolean active=PlaybackService.running,paused=active&&"Paused".equals(PlaybackService.status);Schedule.Snapshot timing=plans.now();long seconds=(timing.remaining+999)/1000;
-  count.setTextSize(seconds>=3600?35:48);count.setText(seconds>=3600?String.format(Locale.getDefault(),"%d:%02d:%02d",seconds/3600,seconds/60%60,seconds%60):String.format(Locale.getDefault(),"%02d:%02d",seconds/60,seconds%60));
-  String label;int icon;
-  if(!active){label="Ready";icon=R.drawable.ic_status_music;}
-  else if(paused){label="Paused";icon=R.drawable.ic_status_pause;}
-  else if("Loading music".equals(PlaybackService.status)){label="Loading";icon=R.drawable.ic_status_loading;}
-  else if("Interrupted".equals(PlaybackService.status)){label="Interrupted";icon=R.drawable.ic_status_pause;}
-  else if(timing.quiet){label="Break";icon=R.drawable.ic_status_rest;}
-  else{label="Playing";icon=R.drawable.ic_status_music;}
-  state.setText(label);state.setTextColor(active?INK:MUTED);
-  if(lastStateIcon!=icon){stateIcon.setImageResource(icon);lastStateIcon=icon;}stateIcon.setAlpha(active?1f:.5f);
-  file.setText(sounds.title());
-  boolean local=sounds.id().equals("local")&&musicStore.state().queue.current()!=null;
-  previousTrack.setVisibility(local?View.VISIBLE:View.GONE);nextTrack.setVisibility(local?View.VISIBLE:View.GONE);
-  PlaybackQueue queue=musicStore.state().queue;shuffleButton.setVisibility(local?View.VISIBLE:View.GONE);repeatButton.setVisibility(local?View.VISIBLE:View.GONE);
-  shuffleButton.setText(queue.shuffle?(queue.repeat==PlaybackQueue.ONE?"Shuffle · suspended":"Shuffle on"):"Shuffle off");shuffleButton.setTextColor(queue.shuffle&&queue.repeat!=PlaybackQueue.ONE?ACCENT:INK);
-  repeatButton.setText(queue.repeat==PlaybackQueue.OFF?"Repeat off":queue.repeat==PlaybackQueue.ALL?"Repeat playlist":"Repeat one");repeatButton.setTextColor(queue.repeat==PlaybackQueue.OFF?INK:ACCENT);
-  detail.setText(timing.quiet?"until the break ends":"until your next break");
-  int playIcon=active&&!paused?R.drawable.ic_control_pause:R.drawable.ic_control_play;if(lastPlayIcon!=playIcon){play.setImageResource(playIcon);lastPlayIcon=playIcon;}
-  play.setContentDescription(!active?"Start playback":paused?"Resume playback":"Pause playback");
-  stop.setEnabled(active);stop.setAlpha(active?1f:.35f);choose.setEnabled(true);choose.setAlpha(1f);choose.setText("Sounds");
-  Schedule.Rhythm rhythm=plans.load();planPreview.setText((timing.quiet?"Break ends at ":"Next break at ")+time(System.currentTimeMillis()+timing.remaining));
-  int selected=plans.selected();if(selected!=lastSelected){
-   for(int i=0;i<4;i++){boolean chosen=selected==i;presetButtons[i].setBackground(ripple(chosen?selectedShape():shape(CARD,14)));presetButtons[i].setTextColor(chosen?ACCENT:INK);presetButtons[i].setSelected(chosen);}
-   customButton.setText(selected==-1?"Custom Rhythm · "+rhythm.work+" / "+rhythm.rest:"Custom Rhythm");customButton.setSelected(selected==-1);lastSelected=selected;
-  }
-  error.setText(PlaybackService.error);error.setVisibility(PlaybackService.error.isEmpty()?View.GONE:View.VISIBLE);dial.invalidate();
- }
- private class Dial extends View {
-  private final Paint p=new Paint(3);
-  Dial(Context c){super(c);setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);}
-  @Override protected void onDraw(Canvas c){super.onDraw(c);float pad=dp(7);RectF r=new RectF(pad,pad,getWidth()-pad,getHeight()-pad);p.setStyle(Paint.Style.STROKE);p.setStrokeWidth(dp(3));p.setStrokeCap(Paint.Cap.ROUND);p.setColor(CARD);c.drawArc(r,-90,360,false,p);p.setColor(ACCENT);Schedule.Snapshot timing=plans.now();float sweep=(float)(360.0*timing.phase/timing.cycle);c.drawArc(r,-90,sweep,false,p);}
+  if(scene==null)return;if(!PlaybackService.running)sleep.endSession();
+  boolean active=PlaybackService.running,paused=active&&"Paused".equals(PlaybackService.status);Schedule.Snapshot timing=plans.now();
+  String label=!active?"Ready":paused?"Paused":"Loading music".equals(PlaybackService.status)?"Loading":"Interrupted".equals(PlaybackService.status)?"Interrupted":timing.quiet?"Break":"Playing";
+  int icon=paused||label.equals("Interrupted")?R.drawable.ic_status_pause:label.equals("Loading")?R.drawable.ic_status_loading:timing.quiet&&active?R.drawable.ic_status_rest:R.drawable.ic_status_music;
+  boolean reduce=prefs.getBoolean("reduce_motion",false);try{reduce|=android.provider.Settings.Global.getFloat(getContentResolver(),android.provider.Settings.Global.ANIMATOR_DURATION_SCALE,1f)==0;}catch(Exception ignored){}
+  scene.setPresentation(resumed&&page==0,reduce,immersive);scene.setState(label,timing.remaining,timing.quiet?timing.cycle-timing.play:timing.play,active&&"Playing".equals(PlaybackService.status),timing.quiet,icon);
+  clockText.setText(time(System.currentTimeMillis()));Schedule.Rhythm rhythm=plans.load();rhythmControl.setText(rhythm.work+" | "+rhythm.rest);rhythmControl.setContentDescription("Change rhythm: "+rhythm.work+" minutes Play, "+rhythm.rest+" minutes Break");
+  planPreview.setText((timing.quiet?"Break ends at ":"Next break at ")+time(System.currentTimeMillis()+timing.remaining));
+  play.setImageResource(active&&!paused?R.drawable.ic_control_pause:R.drawable.ic_control_play);play.setContentDescription(!active?"Start playback":paused?"Resume playback":"Pause playback");stop.setEnabled(active);stop.setAlpha(active?1f:.35f);
+  file.setText(sounds.title());musicRow.setContentDescription("Choose music. "+sounds.title());boolean local=sounds.id().equals("local")&&musicStore.state().queue.current()!=null;previousTrack.setVisibility(local?View.VISIBLE:View.GONE);nextTrack.setVisibility(local?View.VISIBLE:View.GONE);shuffleControl.setVisibility(local?View.VISIBLE:View.GONE);repeatControl.setVisibility(local?View.VISIBLE:View.GONE);
+  PlaybackQueue queue=musicStore.state().queue;shuffleControl.setSelected(queue.shuffle);shuffleControl.setImageTintList(ColorStateList.valueOf(queue.shuffle&&queue.repeat!=PlaybackQueue.ONE?ACCENT:MUTED));shuffleControl.setContentDescription(queue.shuffle?"Shuffle on":"Shuffle off");repeatControl.setImageResource(queue.repeat==PlaybackQueue.ONE?R.drawable.ui_repeat_one:R.drawable.ui_repeat);repeatControl.setImageTintList(ColorStateList.valueOf(queue.repeat==PlaybackQueue.OFF?MUTED:ACCENT));repeatControl.setContentDescription(queue.repeat==PlaybackQueue.OFF?"Repeat off":queue.repeat==PlaybackQueue.ALL?"Repeat playlist":"Repeat one");
+  SleepPlan sp=sleep.load();sleepStatus.setText(sp.active()?sleepCountdown(sp.remaining(SystemClock.elapsedRealtime(),System.currentTimeMillis()))+" · "+time(sp.endTime(SystemClock.elapsedRealtime(),System.currentTimeMillis())):sleep.message());sleepStatus.setVisibility(sp.active()||!sleep.message().isEmpty()?View.VISIBLE:View.GONE);sleepTrigger.setContentDescription(sp.active()?"Change Sleep timer":"Sleep timer");sleepCancel.setVisibility(sp.active()?View.VISIBLE:View.GONE);
+  error.setText(PlaybackService.error);error.setVisibility(!immersive&&!PlaybackService.error.isEmpty()?View.VISIBLE:View.GONE);
+  for(int i=0;i<2;i++)categoryLabels[i].setText(sounds.title(categoryLast(i)));if(page==1&&musicTab>0)musicTab=musicDialog.isPlaylists()?2:1;for(int i=0;i<3;i++){musicTabs[i].setTextColor(musicTab==i?ACCENT:MUTED);musicTabs[i].setSelected(musicTab==i);}
  }
 }

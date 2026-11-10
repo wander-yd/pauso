@@ -14,6 +14,7 @@ public class SoundStoreTest {
   try{sounds.select("unknown");throw new AssertionError("invalid accepted");}catch(IllegalArgumentException expected){}
   check(sounds.id().equals("local"),"invalid selection cannot alter source");
   check(!SoundStore.positionKey("forest").equals(SoundStore.positionKey("local")),"independent saved positions");
+  PlanStoreTest.TestContext upgraded=new PlanStoreTest.TestContext();upgraded.memory.putString("sound_id","pink").apply();SoundStore recall=new SoundStore(upgraded);recall.initialize();recall.select("forest");check(recall.lastInCategory(true).equals("pink"),"upgraded noise remembered across category switch");recall.select("white");check(recall.lastInCategory(false).equals("forest"),"independent nature recall");recall.select("local");recall.initialize();check(recall.lastInCategory(true).equals("white"),"local music preserves category memory");
   System.out.println("PASS: default Brown, old-user migration, volume stability, source persistence/local preservation, independent positions and invalid selection.");
  }
 }

@@ -1,11 +1,11 @@
-# Pauso — Quiet Rhythm · Android 0.14
+# Pauso — Quiet Rhythm · Android 0.15.0
 
 Offline music with scheduled quiet intervals, selectable rhythms, and notification controls. Android 8 or later.
 
 ## Install and use
-Install Pauso.apk over the existing Hour Pause app; do not uninstall first. The package and signing identity are the same, so file access and rhythm preferences can be retained. New users can tap Play immediately with built-in Brown Noise. Existing users retain their previous audio. Select a rhythm, and tap Sounds to choose another built-in or local file. Allow notifications. Audio loops and pauses for the selected quiet intervals, resuming from the same track position.
+Install Pauso.apk over the existing Hour Pause app; do not uninstall first. The package and signing identity are the same, so file access and rhythm preferences can be retained. New users can tap Play immediately with built-in Brown Noise. Existing users retain their previous audio. Tap the compact rhythm control to choose a rhythm, and use the Music tab to select Sounds, Songs or Playlists. Allow notifications. Audio loops and pauses for the selected quiet intervals, resuming from the same track position.
 
-Four buttons show **work / rest minutes**: 14/1, 25/5, 50/10, 90/30. All presets align to the local clock; the default remains 14/1. The line below previews the next rest time or the current rest end.
+The rhythm picker shows **work / rest minutes**: 14/1, 25/5, 50/10, 90/30. All presets align to the local clock; the default remains 14/1. The line below previews the next rest time or the current rest end.
 
 Custom lets you enter 1–720 minutes for work and rest and choose:
 - **Align to clock:** start cycles at today's 00:00 and continue them across days.
@@ -17,12 +17,17 @@ In the notification, the LEFT colored icon is status: green music = playing; amb
 
 The status-bar number is remaining whole minutes rounded up; values above 99 appear as 99+. Actual notification layout depends on the phone system.
 
-## Sleep timer (0.14)
-Start playback, then tap **Sleep timer** below Rhythms. Choose 15/30/60/90 minutes, Custom (1–720), or finish this play period. If currently in a break, the period option explicitly says Stop now. Idle Sleep settings explain that Play is required; choosing Sleep never starts audio automatically.
+## Quiet player (0.15.0)
+Icon-only bottom navigation opens Player, Music and Settings. Tap empty Player space to hide or show controls; tap the record in immersive view to return to controls. Settings also offers Immersive view and Reduce motion. The volume icon opens the player-volume slider. The live timer stays upright while the vinyl rotates counterclockwise with a subtle wobble; the arm lifts when playback is silent.
+
+Sounds has Noise and Nature categories that remember their last choice. Long-press songs to select multiple entries; the circle icon selects all visible results. Removing tracks from a playlist does not delete audio files. Explicit playlist Shuffle chooses a random first track.
+
+## Sleep timer
+Start playback, then tap the **moon icon** on the Player page. Choose 15/30/60/90 minutes, Custom (1–720), or finish this play period. If currently in a break, the period option explicitly says Stop now. Idle Sleep settings explain that Play is required; choosing Sleep never starts audio automatically.
 
 - Sleep stops the entire session, saves the recorded track position and removes the notification. Nothing automatically resumes after it finishes. Explicit Stop, playback errors, an exhausted queue or service termination cancel the armed Sleep setting.
 - Duration counts elapsed time even while manually paused or screen-off; clock/timezone/Rhythm changes do not extend it. Finish-period stops before the upcoming rest; explicit Rhythm/clock/timezone changes recalculate that boundary. Merely reaching a boundary never rolls the deadline into another cycle.
-- The moon row shows the selected kind, live remaining time, local stop time, Change and Cancel. Playing / Paused / Break remains independent. Compact notification keeps its large Rhythm countdown, adding the moon/end time on the track line. Expand for a separate Sleep countdown and cancel action.
+- The moon row shows the remaining time, local stop time and Cancel; tap it to change the timer. Playing / Paused / Break remains independent. Compact notification keeps its large Rhythm countdown, adding the moon/end time on the track line. Expand for a separate Sleep countdown and cancel action.
 - A finished message remains until the next Play or Sleep choice. Only the last selected duration is remembered across sessions. There is no Wake mode, alarm, recurring timer or restart after reboot/process death. No new permissions are needed.
 
 ### Bounded Sleep phone test
