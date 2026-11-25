@@ -9,13 +9,55 @@ public final class MusicDialog extends Dialog {
  private LinearLayout body,actions;private TextView subtitle;private EditText search;private ListView list;private Button phoneTab,playlistTab,addSelected;
  private final ArrayList<Track> device=new ArrayList<>(),shown=new ArrayList<>();private final LinkedHashSet<String> selected=new LinkedHashSet<>();
  private final boolean embedded;private boolean selectionMode;private LinearLayout contextActions;private ImageButton selectAllButton;
- private boolean playlistsTab;private String playlistId;private BaseAdapter adapter;private int dragged=-1;
+ enum BrowserView { SOUNDS("Sounds"), SONGS("Songs"), PLAYLISTS("Playlists"), FOLDERS("Folders");
+  final String label; BrowserView(String label){this.label=label;}
+ }
+ private BrowserView view=BrowserView.SONGS;
+ private LibraryState folders;
+ private String folderId,folderMessage="",currentUri;
+ private boolean searchOpen,playing,motionReduced;
+ private int sort;
+ private final ArrayList<LibraryState.Playlist> visibleFolders=new ArrayList<>();private String playlistId;private BaseAdapter adapter;private int dragged=-1;
  public MusicDialog(Activity a,Host h){this(a,h,false);}
- public MusicDialog(Activity a,Host h,boolean e){super(a);activity=a;host=h;embedded=e;store=new MusicStore(a);}
+ public MusicDialog(Activity a,Host h,boolean e){super(a);activity=a;host=h;embedded=e;store=new MusicStore(a);folders=FolderImport.load(a);}
  public View embeddedView(){if(body==null)buildContent();return body;}
- public boolean isPlaylists(){return playlistsTab;}
- public void activate(boolean playlists){if(body==null)buildContent();if(playlistsTab!=playlists){playlistId=null;selected.clear();selectionMode=false;search.setText("");}playlistsTab=playlists;render();if(!playlists&&device.isEmpty())scan();}
- public boolean navigateBack(){if(selectionMode){selectionMode=false;selected.clear();render();return true;}if(playlistId!=null){playlistId=null;search.setText("");render();return true;}return false;}
+ BrowserView browserView(){return view;}
+ public void activate(BrowserView next){
+  if(body==null)buildContent();
+  if(view!=next){view=next;playlistId=null;folderId=null;resetSearch();}
+  folders=FolderImport.load(activity);
+  render();if(view==BrowserView.SONGS&&device.isEmpty())scan();
+ }
+ private void resetSearch(){selected.clear();selectionMode=false;searchOpen=false;sort=0;search.setText("");}
+ public boolean navigateBack(){
+  if(selectionMode){selectionMode=false;selected.clear();render();return true;}
+  if(searchOpen){searchOpen=false;search.setText("");render();return true;}
+  if(playlistId!=null||folderId!=null){playlistId=null;folderId=null;resetSearch();render();return true;}
+  return false;
+ }
+ void toggleSearch(){
+  searchOpen=!searchOpen;
+  android.view.inputmethod.InputMethodManager keyboard=(android.view.inputmethod.InputMethodManager)activity.getSystemService(Context.INPUT_METHOD_SERVICE);
+  if(!searchOpen){search.setText("");keyboard.hideSoftInputFromWindow(search.getWindowToken(),0);}
+  render();
+  if(searchOpen){search.requestFocus();keyboard.showSoftInput(search,android.view.inputmethod.InputMethodManager.SHOW_IMPLICIT);}
+ }
+ void sortOptions(){new AlertDialog.Builder(activity).setTitle("Sort").setSingleChoiceItems((folderList()||playlistList()?new String[]{"Original order","Name"}:new String[]{"Original order","Title","Artist"}),sort,(d,i)->{sort=i;filter();d.dismiss();}).show();}
+ void folderProgress(String message){folderMessage=message;if(view==BrowserView.FOLDERS)render();}
+ void folderImported(LibraryState.Playlist folder){
+  folders=FolderImport.load(activity);
+  folderProgress(folder.tracks.isEmpty()?"No audio found in this folder.":"");
+  if(view!=BrowserView.FOLDERS)filter();
+ }
+ void playback(Track track,boolean active,boolean reduced){
+  String uri=track==null?null:track.uri;
+  if(Objects.equals(uri,currentUri)&&playing==active&&motionReduced==reduced)return;
+  currentUri=uri;playing=active;motionReduced=reduced;
+  if(adapter!=null)adapter.notifyDataSetChanged();
+ }
+ private boolean folderList(){return view==BrowserView.FOLDERS&&folderId==null;}
+ private boolean playlistList(){return view==BrowserView.PLAYLISTS&&playlistId==null;}
+ private final ArrayList<LibraryState.Playlist> visiblePlaylists=new ArrayList<>();
  private int dp(int n){return Math.round(n*activity.getResources().getDisplayMetrics().density);}
  private TextView text(String s,int size,int color){TextView v=new TextView(activity);v.setText(s);v.setTextSize(size);v.setTextColor(color);return v;}
  private Button button(String s,Runnable action){Button b=new Button(activity);b.setText(s);b.setAllCaps(false);b.setTextColor(INK);b.setTextSize(13);b.setMinHeight(dp(48));GradientDrawable bg=new GradientDrawable();bg.setColor(CARD);bg.setCornerRadius(dp(12));b.setBackground(bg);b.setOnClickListener(v->action.run());return b;}
@@ -24,27 +66,31 @@ public final class MusicDialog extends Dialog {
  private void buildContent(){if(!embedded)requestWindowFeature(Window.FEATURE_NO_TITLE);
   body=new LinearLayout(activity);body.setOrientation(1);body.setPadding(dp(embedded?0:16),dp(embedded?0:12),dp(embedded?0:16),dp(8));body.setBackgroundColor(BG);
   LinearLayout top=new LinearLayout(activity);top.setGravity(Gravity.CENTER_VERTICAL);TextView title=text("My Audio",22,INK);top.addView(title,new LinearLayout.LayoutParams(0,-2,1));top.addView(button("Close",()->dismiss()),new LinearLayout.LayoutParams(dp(72),dp(48)));if(!embedded)body.addView(top);
-  LinearLayout tabs=new LinearLayout(activity);phoneTab=button("Phone music",()->{playlistId=null;playlistsTab=false;selected.clear();selectionMode=false;render();if(device.isEmpty())scan();});playlistTab=button("Playlists",()->{playlistId=null;playlistsTab=true;selected.clear();selectionMode=false;render();});rowButton(tabs,phoneTab);rowButton(tabs,playlistTab);if(!embedded)body.addView(tabs);
+  LinearLayout tabs=new LinearLayout(activity);phoneTab=button("Phone music",()->{playlistId=null;view=BrowserView.SONGS;selected.clear();selectionMode=false;render();if(device.isEmpty())scan();});playlistTab=button("Playlists",()->{playlistId=null;view=BrowserView.PLAYLISTS;selected.clear();selectionMode=false;render();});rowButton(tabs,phoneTab);rowButton(tabs,playlistTab);if(!embedded)body.addView(tabs);
   LinearLayout context=new LinearLayout(activity);context.setGravity(Gravity.CENTER_VERTICAL);subtitle=text("",13,MUTED);subtitle.setSingleLine();subtitle.setEllipsize(TextUtils.TruncateAt.END);context.addView(subtitle,new LinearLayout.LayoutParams(0,dp(48),1));contextActions=new LinearLayout(activity);context.addView(contextActions);body.addView(context);
   search=new EditText(activity);search.setSingleLine();search.setHint("Search title or artist");search.setTextColor(INK);search.setHintTextColor(MUTED);search.setTextSize(15);search.setBackgroundTintList(ColorStateList.valueOf(GOLD));body.addView(search,new LinearLayout.LayoutParams(-1,dp(48)));
   search.addTextChangedListener(new TextWatcher(){public void beforeTextChanged(CharSequence s,int st,int n,int a){}public void onTextChanged(CharSequence s,int st,int before,int count){filter();}public void afterTextChanged(Editable e){}});
   list=new ListView(activity);list.setDividerHeight(dp(1));list.setDivider(new android.graphics.drawable.ColorDrawable(CARD));body.addView(list,new LinearLayout.LayoutParams(-1,0,1));
-  adapter=new BaseAdapter(){public int getCount(){return playlistsTab&&playlistId==null?store.state().playlists.size():shown.size();}public Object getItem(int i){return playlistsTab&&playlistId==null?store.state().playlists.get(i):shown.get(i);}public long getItemId(int i){return i;}
+  adapter=new BaseAdapter(){public int getCount(){return folderList()?visibleFolders.size():playlistList()?visiblePlaylists.size():shown.size();}public Object getItem(int i){return folderList()?visibleFolders.get(i):playlistList()?visiblePlaylists.get(i):shown.get(i);}public long getItemId(int i){return i;}
    public View getView(int i,View reused,android.view.ViewGroup parent){
     LinearLayout row=new LinearLayout(activity);row.setGravity(Gravity.CENTER_VERTICAL);row.setPadding(dp(4),dp(6),dp(4),dp(6));
     LinearLayout words=new LinearLayout(activity);words.setOrientation(1);row.addView(words,new LinearLayout.LayoutParams(0,-2,1));
-    if(playlistsTab&&playlistId==null){LibraryState.Playlist p=store.state().playlists.get(i);words.addView(text(p.name,16,INK));words.addView(text(p.tracks.size()+" tracks",12,MUTED));Button more=button("⋮",()->playlistOptions(p));more.setFocusable(false);more.setContentDescription("Manage "+p.name);row.addView(more,new LinearLayout.LayoutParams(dp(48),dp(48)));}
-    else{Track t=shown.get(i);TextView title=text((t.missing?"Unavailable · ":"")+t.title,15,t.missing?MUTED:INK);title.setMaxLines(2);title.setEllipsize(TextUtils.TruncateAt.END);title.setContentDescription((selected.contains(t.uri)?"Selected, ":"")+(t.missing?"Unavailable, ":"")+t.title);words.addView(title);
+    if(folderList()){LibraryState.Playlist folder=visibleFolders.get(i);words.addView(text(folder.name,16,INK));words.addView(text(folder.tracks.size()+" tracks",12,MUTED));}
+    else if(playlistList()){LibraryState.Playlist p=visiblePlaylists.get(i);words.addView(text(p.name,16,INK));words.addView(text(p.tracks.size()+" tracks",12,MUTED));Button more=button("⋮",()->playlistOptions(p));more.setFocusable(false);more.setContentDescription("Manage "+p.name);row.addView(more,new LinearLayout.LayoutParams(dp(48),dp(48)));}
+    else{Track t=shown.get(i);TextView title=text((t.missing?"Unavailable · ":"")+t.title,15,t.missing?MUTED:INK);title.setSingleLine();row.setMinimumHeight(dp(54));title.setEllipsize(TextUtils.TruncateAt.END);title.setContentDescription((selected.contains(t.uri)?"Selected, ":"")+(t.missing?"Unavailable, ":"")+t.title);if(t.uri.equals(currentUri)){
+      row.setBackgroundColor(CARD);row.addView(new PlayingBars(activity,playing&&!motionReduced),0,new LinearLayout.LayoutParams(dp(24),dp(26)));
+     }
+     words.addView(title);
      words.addView(text((t.artist.isEmpty()?"Audio":t.artist)+(t.duration>0?" · "+String.format(Locale.getDefault(),"%d:%02d",t.duration/60000,t.duration/1000%60):""),12,MUTED));
-     if(playlistId!=null&&!selectionMode){Button handle=button("≡",()->trackOptions(t));handle.setFocusable(false);handle.setContentDescription("Reorder or remove "+t.title+"; hold to drag");handle.setOnLongClickListener(v->{LibraryState.Playlist p=store.state().find(playlistId);dragged=p==null?-1:p.tracks.indexOf(t);if(dragged<0||search.length()>0){toast("Clear search before reordering.");return true;}v.startDragAndDrop(ClipData.newPlainText("Pauso track","reorder"),new View.DragShadowBuilder(v),MusicDialog.this,0);return true;});row.addView(handle,new LinearLayout.LayoutParams(dp(48),dp(48)));}
+     if(playlistId!=null&&!selectionMode){Button handle=button("≡",()->trackOptions(t));handle.setFocusable(false);handle.setContentDescription("Reorder or remove "+t.title+"; hold to drag");handle.setOnLongClickListener(v->{LibraryState.Playlist p=store.state().find(playlistId);dragged=p==null?-1:p.tracks.indexOf(t);if(dragged<0||search.length()>0||sort!=0){toast("Clear search before reordering.");return true;}v.startDragAndDrop(ClipData.newPlainText("Pauso track","reorder"),new View.DragShadowBuilder(v),MusicDialog.this,0);return true;});row.addView(handle,new LinearLayout.LayoutParams(dp(48),dp(48)));}
      else if(selectionMode){TextView check=text(selected.contains(t.uri)?"✓":"○",20,GOLD);check.setPadding(dp(8),0,dp(8),0);row.addView(check);}
     }return row;
    }};list.setAdapter(adapter);
-  list.setOnItemClickListener((p,v,i,id)->{if(playlistsTab&&playlistId==null){playlistId=store.state().playlists.get(i).id;search.setText("");render();return;}Track t=shown.get(i);if(selectionMode){toggle(t);return;}ArrayList<Track> queue=new ArrayList<>(shown);store.select(queue,i);host.selected();if(!embedded)dismiss();});
-  list.setOnItemLongClickListener((p,v,i,id)->{if(playlistsTab&&playlistId==null)playlistOptions(store.state().playlists.get(i));else{selectionMode=true;toggle(shown.get(i));}return true;});
+  list.setOnItemClickListener((p,v,i,id)->{if(folderList()){folderId=visibleFolders.get(i).id;resetSearch();render();return;}if(playlistList()){playlistId=visiblePlaylists.get(i).id;resetSearch();render();return;}Track t=shown.get(i);if(selectionMode){toggle(t);return;}ArrayList<Track> queue=new ArrayList<>(shown);store.select(queue,i);host.selected();if(embedded)host.play();if(!embedded)dismiss();});
+  list.setOnItemLongClickListener((p,v,i,id)->{if(folderList())return false;if(playlistList())playlistOptions(visiblePlaylists.get(i));else{selectionMode=true;toggle(shown.get(i));}return true;});
   list.setOnDragListener((v,event)->{
    if(event.getLocalState()!=MusicDialog.this)return false;
-   if(event.getAction()==DragEvent.ACTION_DRAG_STARTED)return playlistId!=null&&search.length()==0;
+   if(event.getAction()==DragEvent.ACTION_DRAG_STARTED)return playlistId!=null&&search.length()==0&&sort==0;
    if(event.getAction()==DragEvent.ACTION_DRAG_LOCATION){if(event.getY()<dp(48))list.smoothScrollBy(-dp(32),100);else if(event.getY()>list.getHeight()-dp(48))list.smoothScrollBy(dp(32),100);return true;}
    if(event.getAction()==DragEvent.ACTION_DROP){LibraryState.Playlist p=store.state().find(playlistId);int target=list.pointToPosition((int)event.getX(),(int)event.getY());if(p!=null&&dragged>=0&&dragged<p.tracks.size()&&target>=0&&target<p.tracks.size()){Track t=p.tracks.remove(dragged);p.tracks.add(target,t);store.save();filter();}return true;}
    if(event.getAction()==DragEvent.ACTION_DRAG_ENDED)dragged=-1;return true;
@@ -56,37 +102,64 @@ public final class MusicDialog extends Dialog {
  @Override public void onBackPressed(){if(!navigateBack())super.onBackPressed();}
  private void toast(String s){Toast.makeText(activity,s,Toast.LENGTH_SHORT).show();}
  private void toggle(Track t){if(!selected.add(t.uri))selected.remove(t.uri);render();}
- private void filter(){shown.clear();List<Track> source=playlistId==null?device:store.state().find(playlistId)==null?Collections.emptyList():store.state().find(playlistId).tracks;String needle=search.getText().toString().trim().toLowerCase(Locale.ROOT);for(Track t:source)if((t.title+" "+t.artist).toLowerCase(Locale.ROOT).contains(needle))shown.add(t);if(adapter!=null)adapter.notifyDataSetChanged();updateSelectionIcon();}
+ private List<Track> source(){
+  LibraryState.Playlist group=folderId!=null?folders.find(folderId):playlistId!=null?store.state().find(playlistId):null;
+  if(group!=null)return group.tracks;
+  LinkedHashMap<String,Track> all=new LinkedHashMap<>();
+  for(Track t:device)all.put(t.uri,t);
+  for(LibraryState.Playlist folder:folders.playlists)for(Track t:folder.tracks)all.putIfAbsent(t.uri,t);
+  return new ArrayList<>(all.values());
+ }
+ private void filter(){
+  shown.clear();visibleFolders.clear();visiblePlaylists.clear();
+  String needle=search.getText().toString().trim().toLowerCase(Locale.ROOT);
+  if(folderList()||playlistList()){
+   ArrayList<LibraryState.Playlist> groups=folderList()?visibleFolders:visiblePlaylists;
+   for(LibraryState.Playlist group:folderList()?folders.playlists:store.state().playlists)if(group.name.toLowerCase(Locale.ROOT).contains(needle))groups.add(group);
+   if(sort!=0)groups.sort(Comparator.comparing(group->group.name,String.CASE_INSENSITIVE_ORDER));
+  }else{
+   for(Track t:source())if((t.title+" "+t.artist).toLowerCase(Locale.ROOT).contains(needle))shown.add(t);
+   if(sort==1)shown.sort(Comparator.comparing(t->t.title,String.CASE_INSENSITIVE_ORDER));
+   if(sort==2)shown.sort(Comparator.comparing(t->t.artist,String.CASE_INSENSITIVE_ORDER));
+  }
+  if(adapter!=null)adapter.notifyDataSetChanged();updateSelectionIcon();
+ }
  private ImageButton icon(int resource,String label,Runnable action){ImageButton b=new ImageButton(activity);b.setImageResource(resource);b.setImageTintList(ColorStateList.valueOf(GOLD));b.setBackgroundColor(BG);b.setPadding(dp(10),dp(10),dp(10),dp(10));b.setContentDescription(label);b.setOnClickListener(v->action.run());return b;}
  private void tool(int resource,String label,Runnable action){contextActions.addView(icon(resource,label,action),new LinearLayout.LayoutParams(dp(40),dp(48)));}
  private void selectionTools(){
   contextActions.removeAllViews();selectAllButton=null;
-  if(playlistsTab&&playlistId==null)return;
+  if(playlistList()||folderList())return;
   if(selectionMode){tool(R.drawable.ic_close,"Cancel selection",()->{selected.clear();selectionMode=false;render();});tool(playlistId==null?R.drawable.ui_add:R.drawable.ui_trash,playlistId==null?"Add to playlist":"Remove from playlist",()->{if(selected.isEmpty())return;if(playlistId==null)addSelectedTracks();else removeSelectedTracks();});tool(R.drawable.ui_more,"More selection options",()->selectionOptions());}
   selectAllButton=icon(R.drawable.ui_check_empty,"Select all",()->{boolean all=!shown.isEmpty();for(Track t:shown)all&=selected.contains(t.uri);selectionMode=true;for(Track t:shown)if(all)selected.remove(t.uri);else selected.add(t.uri);render();});contextActions.addView(selectAllButton,new LinearLayout.LayoutParams(dp(40),dp(48)));updateSelectionIcon();
  }
  private void updateSelectionIcon(){if(selectAllButton==null)return;int n=0;for(Track t:shown)if(selected.contains(t.uri))n++;boolean all=!shown.isEmpty()&&n==shown.size();selectAllButton.setImageResource(all?R.drawable.ui_check_all:n>0?R.drawable.ui_check_partial:R.drawable.ui_check_empty);selectAllButton.setContentDescription(all?"Deselect all":"Select all");selectAllButton.setSelected(all);selectAllButton.setEnabled(!shown.isEmpty());}
- private void addSelectedTracks(){ArrayList<Track> tracks=new ArrayList<>();List<Track> source=playlistId==null?device:store.state().find(playlistId).tracks;for(Track t:source)if(selected.contains(t.uri))tracks.add(t);chooseDestination(tracks);}
+ private void addSelectedTracks(){ArrayList<Track> tracks=new ArrayList<>();List<Track> source=source();for(Track t:source)if(selected.contains(t.uri))tracks.add(t);chooseDestination(tracks);}
  private void removeSelectedTracks(){LibraryState.Playlist p=store.state().find(playlistId);if(p==null)return;for(int i=p.tracks.size()-1;i>=0;i--)if(selected.contains(p.tracks.get(i).uri))p.tracks.remove(i);store.save();selected.clear();selectionMode=false;render();}
  private void selectionOptions(){new AlertDialog.Builder(activity).setTitle(selected.size()+" selected").setItems(new String[]{"Add to playlist","Cancel selection"},(d,i)->{if(i==0)addSelectedTracks();else{selected.clear();selectionMode=false;render();}}).show();}
  private void playPlaylist(LibraryState.Playlist p,boolean shuffled){if(p.tracks.isEmpty())return;if(shuffled)store.selectShuffled(p.tracks);else store.select(p.tracks,0);host.selected();host.play();if(!embedded)dismiss();}
  private void render(){
-  phoneTab.setTextColor(!playlistsTab?GOLD:INK);playlistTab.setTextColor(playlistsTab?GOLD:INK);actions.removeAllViews();search.setVisibility(playlistsTab&&playlistId==null?View.GONE:View.VISIBLE);filter();
-  if(playlistId!=null){LibraryState.Playlist p=store.state().find(playlistId);if(p==null){playlistId=null;render();return;}subtitle.setText(selectionMode?selected.size()+" selected":p.name);if(!selectionMode){LinearLayout row=new LinearLayout(activity);rowButton(row,button("‹",()->{playlistId=null;search.setText("");render();}));rowButton(row,button("Play",()->playPlaylist(p,false)));rowButton(row,button("Shuffle",()->playPlaylist(p,true)));actions.addView(row);}}
-  else if(playlistsTab){subtitle.setText(store.state().playlists.isEmpty()?"No playlists":store.state().playlists.size()+" playlists");actions.addView(button("New playlist",()->newPlaylist(null)));}
-  else subtitle.setText(selectionMode?selected.size()+" selected":device.size()+" songs");
-  selectionTools();LinearLayout bottom=new LinearLayout(activity);rowButton(bottom,button("Add files",()->host.files()));rowButton(bottom,button("Refresh",()->scan()));actions.addView(bottom);
+  phoneTab.setTextColor(view!=BrowserView.PLAYLISTS?GOLD:INK);playlistTab.setTextColor(view==BrowserView.PLAYLISTS?GOLD:INK);actions.removeAllViews();search.setVisibility(embedded&&!searchOpen?View.GONE:View.VISIBLE);filter();
+  if(playlistId!=null){LibraryState.Playlist p=store.state().find(playlistId);if(p==null){playlistId=null;render();return;}subtitle.setText(selectionMode?selected.size()+" selected":p.name);if(!selectionMode){LinearLayout row=new LinearLayout(activity);rowButton(row,button("‹",()->{playlistId=null;resetSearch();render();}));rowButton(row,button("Play",()->playPlaylist(p,false)));rowButton(row,button("Shuffle",()->playPlaylist(p,true)));actions.addView(row);}}
+  else if(view==BrowserView.FOLDERS){
+   LibraryState.Playlist folder=folders.find(folderId==null?"":folderId);
+   subtitle.setText(selectionMode?selected.size()+" selected":!folderMessage.isEmpty()?folderMessage:folder!=null?folder.name:"");
+   if(folder!=null)actions.addView(button("‹",()->{folderId=null;resetSearch();render();}));
+  }
+  else if(view==BrowserView.PLAYLISTS){subtitle.setText(store.state().playlists.isEmpty()?"No playlists":store.state().playlists.size()+" playlists");actions.addView(button("New playlist",()->newPlaylist(null)));}
+  else subtitle.setText(selectionMode?selected.size()+" selected":source().size()+" songs");
+  selectionTools();
+  if(!embedded){LinearLayout bottom=new LinearLayout(activity);rowButton(bottom,button("Add files",()->host.files()));rowButton(bottom,button("Refresh",()->scan()));actions.addView(bottom);}
  }
  public void scan(){
   if(closed)return;
-  if(activity.checkSelfPermission(MediaLibrary.permission())!=android.content.pm.PackageManager.PERMISSION_GRANTED){render();if(!playlistsTab)subtitle.setText("Audio access is off. Tap Allow access, or Add files.");if(!playlistsTab){Button allow=button("Allow audio access",()->host.permission());actions.addView(allow,0);}return;}
-  int generation=++scanGeneration;if(!playlistsTab)subtitle.setText("Reading phone music…");Context context=activity.getApplicationContext();
-  worker.execute(()->{try{ArrayList<Track> found=MediaLibrary.scan(context);main.post(()->{if(closed||generation!=scanGeneration)return;device.clear();device.addAll(found);store.state().restored(uris(found));store.save();selected.retainAll(uris(found));render();if(found.isEmpty()&&!playlistsTab)subtitle.setText("No indexed audio found. Try Add files or Refresh phone after downloading music.");});}catch(Exception e){main.post(()->{if(closed||generation!=scanGeneration)return;subtitle.setText("Cannot read phone music. Check audio permission, or use Add files.");});}});
+  if(activity.checkSelfPermission(MediaLibrary.permission())!=android.content.pm.PackageManager.PERMISSION_GRANTED){render();if(view==BrowserView.SONGS)subtitle.setText("Audio access is off. Tap Allow access, or Add files.");if(view==BrowserView.SONGS){Button allow=button("Allow audio access",()->host.permission());actions.addView(allow,0);}return;}
+  int generation=++scanGeneration;if(view==BrowserView.SONGS)subtitle.setText("Reading phone music…");Context context=activity.getApplicationContext();
+  worker.execute(()->{try{ArrayList<Track> found=MediaLibrary.scan(context);main.post(()->{if(closed||generation!=scanGeneration)return;device.clear();device.addAll(found);store.state().restored(uris(found));store.save();selected.retainAll(uris(found));render();if(found.isEmpty()&&view==BrowserView.SONGS)subtitle.setText("No indexed audio found. Try Add files or Refresh phone after downloading music.");});}catch(Exception e){main.post(()->{if(closed||generation!=scanGeneration)return;subtitle.setText("Cannot read phone music. Check audio permission, or use Add files.");});}});
  }
  private Set<String> uris(List<Track> tracks){HashSet<String> s=new HashSet<>();for(Track t:tracks)s.add(t.uri);return s;}
  public void imported(List<Track> tracks){if(!closed)chooseDestination(tracks);}
- private void chooseDestination(List<Track> tracks){if(tracks.isEmpty()){toast("No readable files selected.");return;}ArrayList<String> choices=new ArrayList<>();choices.add("New playlist…");for(LibraryState.Playlist p:store.state().playlists)choices.add(p.name);new AlertDialog.Builder(activity).setTitle("Add "+tracks.size()+" tracks to…").setItems(choices.toArray(new String[0]),(d,i)->{if(i==0)newPlaylist(tracks);else{LibraryState.Playlist p=store.state().playlists.get(i-1);int added=LibraryState.add(p,tracks);store.save();selected.clear();selectionMode=false;playlistsTab=true;playlistId=p.id;search.setText("");render();toast(added+" added · duplicates ignored");}}).setNegativeButton("Cancel",null).show();}
- private void newPlaylist(List<Track> tracks){if(store.state().playlists.size()>=LibraryState.MAX_LISTS){toast("Up to 100 playlists are supported.");return;}nameDialog("New playlist","",name->{LibraryState.Playlist p=new LibraryState.Playlist(name);if(tracks!=null)LibraryState.add(p,tracks);store.state().playlists.add(p);store.save();selected.clear();selectionMode=false;playlistsTab=true;playlistId=p.id;search.setText("");render();});}
+ private void chooseDestination(List<Track> tracks){if(tracks.isEmpty()){toast("No readable files selected.");return;}ArrayList<String> choices=new ArrayList<>();choices.add("New playlist…");for(LibraryState.Playlist p:store.state().playlists)choices.add(p.name);new AlertDialog.Builder(activity).setTitle("Add "+tracks.size()+" tracks to…").setItems(choices.toArray(new String[0]),(d,i)->{if(i==0)newPlaylist(tracks);else{LibraryState.Playlist p=store.state().playlists.get(i-1);int added=LibraryState.add(p,tracks);store.save();selected.clear();selectionMode=false;view=BrowserView.PLAYLISTS;folderId=null;playlistId=p.id;resetSearch();render();toast(added+" added · duplicates ignored");}}).setNegativeButton("Cancel",null).show();}
+ private void newPlaylist(List<Track> tracks){if(store.state().playlists.size()>=LibraryState.MAX_LISTS){toast("Up to 100 playlists are supported.");return;}nameDialog("New playlist","",name->{LibraryState.Playlist p=new LibraryState.Playlist(name);if(tracks!=null)LibraryState.add(p,tracks);store.state().playlists.add(p);store.save();selected.clear();selectionMode=false;view=BrowserView.PLAYLISTS;folderId=null;playlistId=p.id;resetSearch();render();});}
  private interface Named {void apply(String name);}
  private void nameDialog(String title,String value,Named result){EditText input=new EditText(activity);input.setSingleLine();input.setText(value);input.setFilters(new InputFilter[]{new InputFilter.LengthFilter(80)});input.setSelectAllOnFocus(true);AlertDialog d=new AlertDialog.Builder(activity).setTitle(title).setView(input).setNegativeButton("Cancel",null).setPositiveButton("Save",null).create();d.setOnShowListener(x->d.getButton(-1).setOnClickListener(v->{String name=input.getText().toString().trim();if(name.isEmpty()){input.setError("Enter a name");return;}result.apply(name);d.dismiss();}));d.show();}
  private void playlistOptions(LibraryState.Playlist p){new AlertDialog.Builder(activity).setTitle(p.name).setItems(new String[]{"Rename","Delete playlist"},(d,i)->{if(i==0)nameDialog("Rename playlist",p.name,n->{p.name=n;store.save();render();});else new AlertDialog.Builder(activity).setTitle("Delete "+p.name+"?").setMessage("Your audio files and current playback queue stay on the phone.").setNegativeButton("Cancel",null).setPositiveButton("Delete",(x,w)->{store.state().playlists.remove(p);store.save();render();}).show();}).show();}

@@ -10,4 +10,14 @@ public final class MediaLibrary {
   }return list;
  }
  public static Track document(Context c,Uri uri){String name="Selected audio";try(Cursor cursor=c.getContentResolver().query(uri,new String[]{OpenableColumns.DISPLAY_NAME},null,null,null)){if(cursor!=null&&cursor.moveToFirst())name=cursor.getString(0);}return new Track(uri.toString(),name,"",0);}
+ public static Track metadata(Context context,Track fallback){
+  android.media.MediaMetadataRetriever reader=new android.media.MediaMetadataRetriever();
+  try{
+   reader.setDataSource(context,Uri.parse(fallback.uri));
+   String title=reader.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_TITLE);
+   String artist=reader.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_ARTIST);
+   String duration=reader.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_DURATION);
+   return new Track(fallback.uri,title==null||title.trim().isEmpty()?fallback.title:title,artist,duration==null?0:Long.parseLong(duration));
+  }catch(RuntimeException e){return fallback;}finally{try{reader.release();}catch(Exception ignored){}}
+ }
 }

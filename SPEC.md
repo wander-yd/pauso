@@ -106,3 +106,10 @@ Preview 2: short straight tonearm attached to a visible right-side plinth; subdu
 Preview 3 replaces procedural scene art with generated material layers: chassis, full transparent vinyl and long bent tonearm. Runtime registration places the arm on the socket and stylus on outer grooves; a fixed light overlay, live CCW remaining ring and upright timer stay independent of disc rotation/wobble. Pause/Break/interrupt lift the arm slightly with the mounting cap fixed. Three 1254px WebP resources are decoded once per view (~18MiB combined bitmap memory); no audio/service changes. Source artwork generated from the approved reference with the built-in image tool; WebP encoding preserves dimensions and alpha. Phone visual/performance verification remains pending.
 
 Formal release 0.15.0 uses explicit versionCode 1020, exceeding public 1007 and all preview packages. CI reads committed manifest version rather than inventing 0.14 run-number versions. This release changes the native visual/music UI, not schedule/audio semantics. Automated checks passed; physical-device review remains pending. Future releases must intentionally bump versionCode and versionName together.
+
+## Music browser update
+
+- Music switches between Sounds, Songs, Folders and Playlists from a single view picker. Search filters the open view or collection, and sorting is local to that view. The existing bottom navigation stays icon-only.
+- Add folder uses Android's folder picker and keeps read access to the selected folder. Audio is registered in place with progress updates, and rescanning the same folder skips previously saved document URIs. The existing Add files action still offers a playlist destination.
+- Tapping a song in Music starts or resumes playback in place. The mini player shows the current local song across Music views. Its row is highlighted and the bars move only during playback, respecting reduced motion.
+- Android acceptance: select Alternative Metal once (507 files), find Linkin Park, play a track, switch views, then return to the playlist and identify the current row.

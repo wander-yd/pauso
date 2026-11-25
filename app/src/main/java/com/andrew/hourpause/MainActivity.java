@@ -41,7 +41,7 @@ public class MainActivity extends Activity {
  private FrameLayout pageArea,musicContent;private View musicPage,settingsPage,soundsPage,browserPage;
  private TurntableView scene;private TextView clockText;private Button rhythmControl;
  private ImageButton sleepTrigger,shuffleControl,repeatControl;private final ImageButton[] navButtons=new ImageButton[3];
- private final Button[] musicTabs=new Button[3];private final TextView[] categoryLabels=new TextView[2];
+ private Button musicViews; private TextView miniTitle,miniArtist; private ImageButton miniToggle; private View miniPlayer; private boolean importingFolder;private final TextView[] categoryLabels=new TextView[2];
  private int page=0,musicTab=0;private boolean immersive,resumed;
  @Override public void onCreate(Bundle b){
   super.onCreate(b);sleep=new SleepStore(this);if(!PlaybackService.running)sleep.endSession();prefs=getSharedPreferences("player",0);plans=new PlanStore(this);sounds=new SoundStore(this);sounds.initialize();musicStore=new MusicStore(this);updates=new UpdateClient(this);
@@ -76,12 +76,17 @@ public class MainActivity extends Activity {
   bottomNav=new LinearLayout(this);bottomNav.setPadding(dp(20),dp(3),dp(20),dp(3));shell.addView(bottomNav,new LinearLayout.LayoutParams(-1,dp(54)));
   int[] navIcons={R.drawable.ui_disc,R.drawable.ic_music,R.drawable.ui_settings};String[] navLabels={"Player","Music","Settings"};
   for(int i=0;i<3;i++){final int n=i;ImageButton button=iconButton(navIcons[i],BG,MUTED,44,12,navLabels[i]);navButtons[i]=button;bottomNav.addView(button,new LinearLayout.LayoutParams(0,-1,1));button.setOnClickListener(v->setPage(n));}
-  setContentView(shell);shell.requestApplyInsets();int restored=b==null?0:b.getInt("page",0);setPage(restored);if(b!=null&&b.getBoolean("immersive",false)&&page==0)setQuietMode(true);render();
+  setContentView(shell);shell.requestApplyInsets();int restored=b==null?0:b.getInt("page",0);musicTab=b==null?0:b.getInt("musicTab",0);setPage(restored);if(b!=null&&b.getBoolean("immersive",false)&&page==0)setQuietMode(true);render();
  }
  private void buildMusicPage(){
   LinearLayout root=new LinearLayout(this);root.setOrientation(1);root.setPadding(dp(16),dp(14),dp(16),0);musicPage=root;pageArea.addView(root,new FrameLayout.LayoutParams(-1,-1));
-  LinearLayout tabs=new LinearLayout(this);String[] labels={"Sounds","Songs","Playlists"};for(int i=0;i<3;i++){final int n=i;Button tab=button(labels[i],false);tab.setTextSize(13);musicTabs[i]=tab;LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(0,dp(44),1);if(i>0)lp.leftMargin=dp(4);tabs.addView(tab,lp);tab.setOnClickListener(v->setMusicTab(n));}root.addView(tabs);
-  musicContent=new FrameLayout(this);LinearLayout.LayoutParams cp=new LinearLayout.LayoutParams(-1,0,1);cp.topMargin=dp(12);root.addView(musicContent,cp);
+  LinearLayout toolbar=new LinearLayout(this);toolbar.setGravity(Gravity.CENTER_VERTICAL);root.addView(toolbar);
+  musicViews=button("Sounds ▾",false);toolbar.addView(musicViews,new LinearLayout.LayoutParams(0,dp(46),1));
+  musicViews.setOnClickListener(v->{PopupMenu menu=new PopupMenu(this,v);for(MusicDialog.BrowserView view:MusicDialog.BrowserView.values())menu.getMenu().add(0,view.ordinal(),0,view.label);menu.setOnMenuItemClickListener(item->{setMusicTab(item.getItemId());return true;});menu.show();});
+  musicTool(toolbar,android.R.drawable.ic_menu_search,"Search",()->{if(musicTab==0)setMusicTab(1);musicDialog.toggleSearch();});
+  musicTool(toolbar,android.R.drawable.ic_menu_sort_by_size,"Sort",()->{if(musicTab==0)setMusicTab(1);musicDialog.sortOptions();});
+  musicTool(toolbar,R.drawable.ui_add,"Add music",()->new AlertDialog.Builder(this).setItems(new String[]{"Add folder","Add files","Refresh phone music"},(d,i)->{if(i==0)pickFolder();else if(i==1)importFiles();else{setMusicTab(1);musicDialog.scan();}}).show());
+  musicContent=new FrameLayout(this);LinearLayout.LayoutParams cp=new LinearLayout.LayoutParams(-1,0,1);cp.topMargin=dp(4);root.addView(musicContent,cp);
   ScrollView scroll=new ScrollView(this);LinearLayout categories=new LinearLayout(this);categories.setOrientation(1);scroll.addView(categories);soundsPage=scroll;musicContent.addView(scroll,new FrameLayout.LayoutParams(-1,-1));
   LinearLayout cards=new LinearLayout(this);categories.addView(cards);String[] names={"Noise","Nature"};int[] symbols={R.drawable.ui_noise,R.drawable.ui_nature};
   for(int i=0;i<2;i++){final int index=i;LinearLayout card=new LinearLayout(this);card.setOrientation(1);card.setBackground(shape(CARD,18));LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(0,-2,1);if(i>0)lp.leftMargin=dp(10);cards.addView(card,lp);
@@ -89,11 +94,44 @@ public class MainActivity extends Activity {
    ImageView symbol=new ImageView(this);symbol.setImageResource(symbols[i]);symbol.setImageTintList(ColorStateList.valueOf(ACCENT));symbol.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);main.addView(symbol,new LinearLayout.LayoutParams(dp(28),dp(28)));TextView name=text(names[i],19,INK);add(main,name,14);categoryLabels[i]=text(categoryLast(i),11,MUTED);categoryLabels[i].setMaxLines(2);add(main,categoryLabels[i],4);
    Button change=button("Change ›",false);change.setTextColor(ACCENT);change.setTextSize(12);change.setContentDescription("Change "+names[i]+" sound");card.addView(change,new LinearLayout.LayoutParams(-1,dp(44)));change.setOnClickListener(v->categoryDialog(index));
   }
-  musicDialog=new MusicDialog(this,new MusicDialog.Host(){public void permission(){requestPermissions(new String[]{MediaLibrary.permission()},18);}public void files(){importFiles();}public void selected(){soundChanged();}public void play(){if(!PlaybackService.running||"Paused".equals(PlaybackService.status))playOrPause();setPage(0);}},true);
+  musicDialog=new MusicDialog(this,new MusicDialog.Host(){public void permission(){requestPermissions(new String[]{MediaLibrary.permission()},18);}public void files(){importFiles();}public void selected(){soundChanged();}public void play(){if(!PlaybackService.running||"Paused".equals(PlaybackService.status))playOrPause();}},true);
   browserPage=musicDialog.embeddedView();musicContent.addView(browserPage,new FrameLayout.LayoutParams(-1,-1));browserPage.setVisibility(View.GONE);
+  LinearLayout mini=new LinearLayout(this);mini.setGravity(Gravity.CENTER_VERTICAL);mini.setPadding(dp(12),0,dp(4),0);mini.setBackground(shape(CARD,12));
+  LinearLayout labels=new LinearLayout(this);labels.setOrientation(1);mini.addView(labels,new LinearLayout.LayoutParams(0,-2,1));
+  miniTitle=text("",14,INK);miniTitle.setSingleLine();miniTitle.setEllipsize(TextUtils.TruncateAt.END);labels.addView(miniTitle);
+  miniArtist=text("",11,MUTED);miniArtist.setSingleLine();miniArtist.setEllipsize(TextUtils.TruncateAt.END);labels.addView(miniArtist);
+  miniToggle=iconButton(R.drawable.ic_control_play,CARD,ACCENT,44,12,"Start playback");miniToggle.setOnClickListener(v->playOrPause());
+  mini.addView(miniToggle,new LinearLayout.LayoutParams(dp(48),dp(48)));root.addView(mini,new LinearLayout.LayoutParams(-1,dp(52)));miniPlayer=mini;
+ }
+ private void musicTool(LinearLayout row,int resource,String label,Runnable action){
+  ImageButton b=iconButton(resource,BG,ACCENT,44,11,label);row.addView(b,new LinearLayout.LayoutParams(dp(44),dp(46)));b.setOnClickListener(v->action.run());
+ }
+ private void pickFolder(){
+  if(importingFolder)return;
+  Intent intent=new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION|Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
+  try{startActivityForResult(intent,19);}catch(ActivityNotFoundException e){Toast.makeText(this,"No folder picker found.",Toast.LENGTH_LONG).show();}
+ }
+ private void importFolder(Intent data){
+  if(importingFolder||data.getData()==null)return;
+  Uri tree=data.getData();
+  try{getContentResolver().takePersistableUriPermission(tree,Intent.FLAG_GRANT_READ_URI_PERMISSION);}
+  catch(SecurityException e){Toast.makeText(this,"Could not keep access to this folder.",Toast.LENGTH_LONG).show();return;}
+  importingFolder=true;setPage(1);setMusicTab(3);musicDialog.folderProgress("Scanning folder…");
+  Context context=getApplicationContext();
+  new Thread(()->{
+   try{
+    LibraryState.Playlist folder=FolderImport.scan(context,tree,(done,total)->runOnUiThread(()->{
+     if(!isDestroyed())musicDialog.folderProgress("Importing · "+done+" / "+total);
+    }));
+    FolderImport.save(context,folder);
+    runOnUiThread(()->{importingFolder=false;if(!isDestroyed())musicDialog.folderImported(folder);});
+   }catch(Exception e){
+    runOnUiThread(()->{importingFolder=false;if(!isDestroyed())musicDialog.folderProgress("Could not scan folder. Choose it again to retry.");});
+   }
+  },"Pauso folder import").start();
  }
  private String categoryLast(int category){return sounds.lastInCategory(category==0);}
- private void setMusicTab(int tab){musicTab=tab;boolean browser=tab>0;soundsPage.setVisibility(browser?View.GONE:View.VISIBLE);browserPage.setVisibility(browser?View.VISIBLE:View.GONE);if(browser)musicDialog.activate(tab==2);render();}
+ private void setMusicTab(int tab){musicTab=tab;boolean browser=tab>0;soundsPage.setVisibility(browser?View.GONE:View.VISIBLE);browserPage.setVisibility(browser?View.VISIBLE:View.GONE);if(browser)musicDialog.activate(MusicDialog.BrowserView.values()[tab]);render();}
  private void buildSettingsPage(){ScrollView scroll=new ScrollView(this);LinearLayout root=new LinearLayout(this);root.setOrientation(1);root.setPadding(dp(20),dp(16),dp(20),dp(16));scroll.addView(root);settingsPage=scroll;pageArea.addView(scroll,new FrameLayout.LayoutParams(-1,-1));
   Button immersiveEntry=button("Immersive view",false);add(root,immersiveEntry,4);immersiveEntry.setOnClickListener(v->{setPage(0);setQuietMode(true);});
   Switch motion=new Switch(this);motion.setText("Reduce motion");motion.setTextColor(INK);motion.setPadding(dp(6),dp(8),dp(6),dp(8));motion.setChecked(prefs.getBoolean("reduce_motion",false));add(root,motion,12);motion.setOnCheckedChangeListener((v,checked)->{prefs.edit().putBoolean("reduce_motion",checked).apply();render();});
@@ -103,7 +141,7 @@ public class MainActivity extends Activity {
  private void setPage(int selected){if(selected<0||selected>2)selected=0;if(immersive)setQuietMode(false);page=selected;playerPage.setVisibility(page==0?View.VISIBLE:View.GONE);musicPage.setVisibility(page==1?View.VISIBLE:View.GONE);settingsPage.setVisibility(page==2?View.VISIBLE:View.GONE);if(page==1)setMusicTab(musicTab);for(int i=0;i<3;i++)if(navButtons[i]!=null){navButtons[i].setImageTintList(ColorStateList.valueOf(page==i?ACCENT:MUTED));navButtons[i].setSelected(page==i);}render();}
  private void setQuietMode(boolean value){immersive=value;for(View v:new View[]{topBar,planPreview,transportRow,sleepRow,musicRow,bottomNav})v.setVisibility(value?View.GONE:View.VISIBLE);error.setVisibility(!value&&!PlaybackService.error.isEmpty()?View.VISIBLE:View.GONE);if(value)scene.requestFocus();render();}
  @Override public void onBackPressed(){if(immersive){setQuietMode(false);return;}if(page==1&&musicTab>0&&musicDialog.navigateBack())return;if(page!=0){setPage(0);return;}super.onBackPressed();}
- @Override protected void onSaveInstanceState(Bundle b){b.putInt("page",page);b.putBoolean("immersive",immersive);super.onSaveInstanceState(b);}
+ @Override protected void onSaveInstanceState(Bundle b){b.putInt("page",page);b.putInt("musicTab",musicTab);b.putBoolean("immersive",immersive);super.onSaveInstanceState(b);}
  private void volumeDialog(){LinearLayout box=new LinearLayout(this);box.setPadding(dp(20),dp(8),dp(20),dp(12));SeekBar bar=new SeekBar(this);bar.setMax(100);bar.setProgress(sounds.volume());bar.setContentDescription("Player volume");bar.setProgressTintList(ColorStateList.valueOf(ACCENT));bar.setThumbTintList(ColorStateList.valueOf(ACCENT));box.addView(bar,new LinearLayout.LayoutParams(-1,dp(48)));bar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener(){public void onProgressChanged(SeekBar v,int n,boolean user){if(user){prefs.edit().putInt("volume",n).apply();if(PlaybackService.running)startService(new Intent(MainActivity.this,PlaybackService.class).setAction(PlaybackService.VOLUME));}}public void onStartTrackingTouch(SeekBar b){}public void onStopTrackingTouch(SeekBar b){}});new AlertDialog.Builder(this).setTitle("Player volume").setView(box).setNegativeButton("Close",null).show();}
  private void rhythmDialog(){LinearLayout box=new LinearLayout(this);box.setPadding(dp(20),dp(8),dp(20),dp(12));box.setOrientation(1);box.addView(text("Play / Break · minutes",12,MUTED));AlertDialog d=new AlertDialog.Builder(this).setTitle("Rhythm").setView(box).setNegativeButton("Close",null).create();for(int row=0;row<2;row++){LinearLayout line=new LinearLayout(this);add(box,line,8);for(int col=0;col<2;col++){final int index=row*2+col;int[] p=PlanStore.PRESETS[index];Button tile=button(p[0]+"\n"+p[1],false);tile.setTextSize(22);tile.setContentDescription(p[0]+" minutes Play, "+p[1]+" minutes Break");tile.setTextColor(plans.selected()==index?ACCENT:INK);LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(0,dp(78),1);if(col>0)lp.leftMargin=dp(8);line.addView(tile,lp);tile.setOnClickListener(v->{plans.preset(index);d.dismiss();planChanged();});}}Button custom=button("Custom rhythm ›",false);add(box,custom,10);custom.setOnClickListener(v->{d.dismiss();customDialog();});d.show();}
  private void categoryDialog(int category){stopPreview();LinearLayout box=new LinearLayout(this);box.setOrientation(1);box.setPadding(dp(18),dp(4),dp(18),dp(8));TextView message=text("",12,ACCENT);add(box,message,0);String[] ids=category==0?new String[]{"white","pink","brown"}:new String[]{"rain","forest"};AlertDialog dialog=new AlertDialog.Builder(this).setTitle(category==0?"Noise":"Nature").setView(box).setNegativeButton("Close",null).create();for(String id:ids){LinearLayout row=new LinearLayout(this);row.setGravity(Gravity.CENTER_VERTICAL);TextView title=text(sounds.title(id),15,INK);row.addView(title,new LinearLayout.LayoutParams(0,-2,1));ImageButton preview=iconButton(R.drawable.ic_control_play,CARD,INK,44,13,"Preview "+sounds.title(id));row.addView(preview,new LinearLayout.LayoutParams(dp(44),dp(44)));preview.setOnClickListener(v->previewSound(id,message));Button use=button(sounds.id().equals(id)?"Selected":"Use",false);use.setTextSize(12);LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(dp(80),dp(44));lp.leftMargin=dp(6);row.addView(use,lp);use.setOnClickListener(v->{stopPreview();sounds.select(id);soundChanged();dialog.dismiss();});add(box,row,8);}dialog.setOnDismissListener(d->stopPreview());dialog.show();}
@@ -215,9 +253,9 @@ public class MainActivity extends Activity {
  private ImageButton iconButton(int icon,int background,int tint,int size,int padding,String description){ImageButton b=new ImageButton(this);b.setImageResource(icon);b.setImageTintList(ColorStateList.valueOf(tint));b.setBackground(ripple(shape(background,size)));b.setPadding(dp(padding),dp(padding),dp(padding),dp(padding));b.setStateListAnimator(null);b.setElevation(0);b.setScaleType(ImageView.ScaleType.FIT_CENTER);b.setContentDescription(description);return b;}
  private void add(LinearLayout root,View view,int top){LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-1,-2);p.topMargin=dp(top);root.addView(view,p);}
  @Override protected void onActivityResult(int request,int result,Intent data){super.onActivityResult(request,result,data);
+  if(request==19){if(result==RESULT_OK&&data!=null)importFolder(data);return;}
   if(request==17){if(result!=RESULT_OK||data==null)return;java.util.ArrayList<Uri> uris=new java.util.ArrayList<>();
    if(data.getClipData()!=null){for(int i=0;i<data.getClipData().getItemCount();i++)uris.add(data.getClipData().getItemAt(i).getUri());}else if(data.getData()!=null)uris.add(data.getData());
-   if(uris.size()>200){Toast.makeText(this,"Please add at most 200 files at a time.",Toast.LENGTH_LONG).show();return;}
    android.content.Context app=getApplicationContext();new Thread(()->{java.util.ArrayList<Track> tracks=new java.util.ArrayList<>();for(Uri uri:uris)try{app.getContentResolver().takePersistableUriPermission(uri,Intent.FLAG_GRANT_READ_URI_PERMISSION);tracks.add(MediaLibrary.document(app,uri));}catch(Exception ignored){}
     runOnUiThread(()->{if(isFinishing()||isDestroyed())return;openMusic();musicDialog.imported(tracks);if(tracks.size()!=uris.size())Toast.makeText(this,"Some files could not retain access. Choose downloaded audio on your phone.",Toast.LENGTH_LONG).show();});},"Pauso file import").start();return;
   }
@@ -245,6 +283,18 @@ public class MainActivity extends Activity {
   PlaybackQueue queue=musicStore.state().queue;shuffleControl.setSelected(queue.shuffle);shuffleControl.setImageTintList(ColorStateList.valueOf(queue.shuffle&&queue.repeat!=PlaybackQueue.ONE?ACCENT:MUTED));shuffleControl.setContentDescription(queue.shuffle?"Shuffle on":"Shuffle off");repeatControl.setImageResource(queue.repeat==PlaybackQueue.ONE?R.drawable.ui_repeat_one:R.drawable.ui_repeat);repeatControl.setImageTintList(ColorStateList.valueOf(queue.repeat==PlaybackQueue.OFF?MUTED:ACCENT));repeatControl.setContentDescription(queue.repeat==PlaybackQueue.OFF?"Repeat off":queue.repeat==PlaybackQueue.ALL?"Repeat playlist":"Repeat one");
   SleepPlan sp=sleep.load();sleepStatus.setText(sp.active()?sleepCountdown(sp.remaining(SystemClock.elapsedRealtime(),System.currentTimeMillis()))+" · "+time(sp.endTime(SystemClock.elapsedRealtime(),System.currentTimeMillis())):sleep.message());sleepStatus.setVisibility(sp.active()||!sleep.message().isEmpty()?View.VISIBLE:View.GONE);sleepTrigger.setContentDescription(sp.active()?"Change Sleep timer":"Sleep timer");sleepCancel.setVisibility(sp.active()?View.VISIBLE:View.GONE);
   error.setText(PlaybackService.error);error.setVisibility(!immersive&&!PlaybackService.error.isEmpty()?View.VISIBLE:View.GONE);
-  for(int i=0;i<2;i++)categoryLabels[i].setText(sounds.title(categoryLast(i)));if(page==1&&musicTab>0)musicTab=musicDialog.isPlaylists()?2:1;for(int i=0;i<3;i++){musicTabs[i].setTextColor(musicTab==i?ACCENT:MUTED);musicTabs[i].setSelected(musicTab==i);}
+  for(int i=0;i<2;i++)categoryLabels[i].setText(sounds.title(categoryLast(i)));if(page==1&&musicTab>0)musicTab=musicDialog.browserView().ordinal();
+  String viewLabel=MusicDialog.BrowserView.values()[musicTab].label+" ▾";
+  if(!android.text.TextUtils.equals(musicViews.getText(),viewLabel))musicViews.setText(viewLabel);
+  Track track=local?queue.current():null;
+  miniPlayer.setVisibility(track==null?View.GONE:View.VISIBLE);
+  if(track!=null){
+   if(!TextUtils.equals(miniTitle.getText(),track.title))miniTitle.setText(track.title);
+   if(!TextUtils.equals(miniArtist.getText(),track.artist))miniArtist.setText(track.artist);
+   miniArtist.setVisibility(track.artist.isEmpty()?View.GONE:View.VISIBLE);
+   miniToggle.setImageResource(active&&!paused?R.drawable.ic_control_pause:R.drawable.ic_control_play);
+   miniToggle.setContentDescription(active&&!paused?"Pause playback":"Play");
+  }
+  musicDialog.playback(track,active&&"Playing".equals(PlaybackService.status),reduce);
  }
 }
